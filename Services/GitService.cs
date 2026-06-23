@@ -809,6 +809,21 @@ public sealed class GitService
             return "Ignored";
         }
 
+        if (IsConflictStatus(rawStatus))
+        {
+            return rawStatus switch
+            {
+                "DD" => "Conflict (both deleted)",
+                "AU" => "Conflict (added by us)",
+                "UD" => "Conflict (deleted by them)",
+                "UA" => "Conflict (added by them)",
+                "DU" => "Conflict (deleted by us)",
+                "AA" => "Conflict (both added)",
+                "UU" => "Conflict (both modified)",
+                _ => "Conflict",
+            };
+        }
+
         var index = rawStatus[0];
         var worktree = rawStatus[1];
 
@@ -833,5 +848,11 @@ public sealed class GitService
                 _ => "Changed",
             },
         };
+    }
+
+    private static bool IsConflictStatus(string rawStatus)
+    {
+        return rawStatus is "DD" or "AA" or "UU" or "AU" or "UA" or "DU" or "UD" ||
+               rawStatus.Contains('U', StringComparison.Ordinal);
     }
 }

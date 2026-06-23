@@ -10,6 +10,7 @@ GitDesk is a cross-platform desktop Git UI built with C# and Avalonia. It focuse
 - Tree delete handles untracked and ignored paths without surfacing Git pathspec failures.
 - Show local unpushed commits in `ChangeLists`.
 - Show repository commit history with `Local` and `Remote` state markers.
+- Show merge conflicts as a dedicated `Conflicts` ChangeList with per-file conflict status.
 - Inspect commit file changes in a docked `CL Changes` panel.
 - Search a commit directly through `Search -> ByCommit`.
 - Open a standalone commit changes window from commit search.

@@ -1948,6 +1948,11 @@ public sealed class MainWindowViewModel : ObservableObject
             return null;
         }
 
+        if (IsConflictStatus(change.Status))
+        {
+            return "Conflicts";
+        }
+
         return change.Status[0] switch
         {
             'A' => "Staged Added",
@@ -1959,6 +1964,12 @@ public sealed class MainWindowViewModel : ObservableObject
             'U' => "Staged Unmerged",
             _ => null,
         };
+    }
+
+    private static bool IsConflictStatus(string status)
+    {
+        return status is "DD" or "AA" or "UU" or "AU" or "UA" or "DU" or "UD" ||
+               status.Contains('U', StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> SplitOutput(string text)
