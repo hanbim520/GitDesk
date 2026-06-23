@@ -582,7 +582,7 @@ public sealed class GitService
 
             var rawStatus = line[..2];
             var status = rawStatus.Trim();
-            var path = line[3..].Trim();
+            var path = NormalizeStatusPath(line[3..].Trim());
             var details = GetStatusDetails(rawStatus);
 
             changes.Add(new GitChange(status, path, details));
@@ -604,13 +604,81 @@ public sealed class GitService
 
             var status = parts[0].Trim();
             var path = status.StartsWith("R", StringComparison.Ordinal) && parts.Length >= 3
-                ? $"{parts[1]} -> {parts[2]}"
-                : parts[1];
+                ? $"{NormalizeGitPath(parts[1])} -> {NormalizeGitPath(parts[2])}"
+                : NormalizeGitPath(parts[1]);
 
             changes.Add(new GitChange(status, path, GetNameStatusDetails(status)));
         }
 
         return changes;
+    }
+
+    private static string NormalizeStatusPath(string path)
+    {
+        const string renameMarker = " -> ";
+        if (!path.Contains(renameMarker, StringComparison.Ordinal))
+        {
+            return NormalizeGitPath(path);
+        }
+
+        return string.Join(
+            renameMarker,
+            path.Split(new[] { renameMarker }, StringSplitOptions.None)
+                .Select(NormalizeGitPath));
+    }
+
+    private static string NormalizeGitPath(string path)
+    {
+        var trimmed = path.Trim();
+        if (trimmed.Length < 2 || trimmed[0] != '"' || trimmed[^1] != '"')
+        {
+            return trimmed;
+        }
+
+        return UnescapeGitQuotedPath(trimmed[1..^1]);
+    }
+
+    private static string UnescapeGitQuotedPath(string path)
+    {
+        var builder = new StringBuilder(path.Length);
+        for (var i = 0; i < path.Length; i++)
+        {
+            var current = path[i];
+            if (current != '\\' || i + 1 >= path.Length)
+            {
+                builder.Append(current);
+                continue;
+            }
+
+            var next = path[++i];
+            if (next is >= '0' and <= '7')
+            {
+                var value = next - '0';
+                var count = 1;
+                while (count < 3 && i + 1 < path.Length && path[i + 1] is >= '0' and <= '7')
+                {
+                    value = (value * 8) + (path[++i] - '0');
+                    count++;
+                }
+
+                builder.Append((char)value);
+                continue;
+            }
+
+            builder.Append(next switch
+            {
+                'a' => '\a',
+                'b' => '\b',
+                'f' => '\f',
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                'v' => '\v',
+                _ => next,
+            });
+        }
+
+        return builder.ToString();
     }
 
     private static string GetNameStatusDetails(string status)
