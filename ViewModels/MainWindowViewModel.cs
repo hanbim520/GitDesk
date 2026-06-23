@@ -253,6 +253,10 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public bool CanRevertSelectedCLChangeModified => SelectedCommitChange is not null && CanRevertSelectedStagedModified;
 
+    public bool CanResolveSelectedConflict => SelectedCommitChange is not null && IsConflictStatus(SelectedCommitChange.Status);
+
+    public bool CanAbortMerge => IsSelectedChangeListState("Conflicts");
+
     public string SelectedPendingCommitChangesTitle
     {
         get => _selectedPendingCommitChangesTitle;
@@ -623,6 +627,85 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         return await GetCommitChangeDiffAsync(_selectedCommitChangesRevision, SelectedCommitChange);
+    }
+
+    public async Task<MergeConflictFile?> GetSelectedMergeConflictFileAsync()
+    {
+        if (SelectedCommitChange is null)
+        {
+            AppendOutput("No CL change selected.");
+            return null;
+        }
+
+        if (!IsConflictStatus(SelectedCommitChange.Status))
+        {
+            AppendOutput("Selected CL change is not a conflict.");
+            return null;
+        }
+
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return null;
+        }
+
+        StatusText = "Open merge conflict";
+        var file = await _git.GetMergeConflictFileAsync(repositoryRoot, SelectedCommitChange);
+        StatusText = "Ready";
+        return file;
+    }
+
+    public async Task<bool> SaveSelectedMergeConflictContentAsync(string content)
+    {
+        if (SelectedCommitChange is null)
+        {
+            AppendOutput("No CL change selected.");
+            return false;
+        }
+
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return false;
+        }
+
+        var saved = await _git.SaveWorkingFileContentAsync(repositoryRoot, SelectedCommitChange.Path, content);
+        AppendOutput(saved
+            ? $"Saved merge file: {SelectedCommitChange.Path}"
+            : $"Save merge file failed: {SelectedCommitChange.Path}");
+        StatusText = saved ? "Ready" : "Save failed";
+        return saved;
+    }
+
+    public async Task<bool> UseOursForSelectedConflictAsync()
+    {
+        return await RunSelectedConflictCommandAsync("Use ours", (repositoryRoot, path) => _git.UseOursAsync(repositoryRoot, path));
+    }
+
+    public async Task<bool> UseTheirsForSelectedConflictAsync()
+    {
+        return await RunSelectedConflictCommandAsync("Use theirs", (repositoryRoot, path) => _git.UseTheirsAsync(repositoryRoot, path));
+    }
+
+    public async Task<bool> MarkSelectedConflictResolvedAsync()
+    {
+        return await RunSelectedConflictCommandAsync("Mark resolved", (repositoryRoot, path) => _git.MarkResolvedAsync(repositoryRoot, path));
+    }
+
+    public async Task<bool> AbortMergeAsync()
+    {
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return false;
+        }
+
+        StatusText = "Abort merge";
+        var result = await _git.AbortMergeAsync(repositoryRoot);
+        AppendCommand("Abort merge", repositoryRoot, new[] { "merge", "--abort" }, result.StandardOutput, result.StandardError);
+        await RefreshAsync();
+        StatusText = result.IsSuccess ? "Ready" : "Abort merge failed";
+        return result.IsSuccess;
     }
 
     public async Task<CommitChangeDiff?> GetCommitChangeDiffAsync(GitHistoryEntry commit, GitChange change)
@@ -1484,6 +1567,48 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
     }
 
+    private async Task<bool> RunSelectedConflictCommandAsync(
+        string title,
+        Func<string, string, Task<GitCommandResult>> commandAsync)
+    {
+        if (SelectedCommitChange is null)
+        {
+            AppendOutput($"No file selected for {title}.");
+            return false;
+        }
+
+        if (!IsConflictStatus(SelectedCommitChange.Status))
+        {
+            AppendOutput($"{title} is only available for conflict files.");
+            return false;
+        }
+
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return false;
+        }
+
+        StatusText = title;
+        var path = SelectedCommitChange.Path.Replace('\\', '/');
+        var result = await commandAsync(repositoryRoot, path);
+        AppendCommand(title, repositoryRoot, GetConflictCommandArguments(title, path), result.StandardOutput, result.StandardError);
+        await RefreshAsync();
+        StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
+        return result.IsSuccess;
+    }
+
+    private static IReadOnlyList<string> GetConflictCommandArguments(string title, string path)
+    {
+        return title switch
+        {
+            "Use ours" => new[] { "checkout", "--ours", "--", path },
+            "Use theirs" => new[] { "checkout", "--theirs", "--", path },
+            "Mark resolved" => new[] { "add", "--", path },
+            _ => new[] { title, path },
+        };
+    }
+
     private async Task RunRepositoryCommandAsync(string title, IReadOnlyList<string> arguments, bool refreshAfter)
     {
         var repositoryRoot = await ResolveRepositoryRootAsync();
@@ -1959,6 +2084,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanCancelSelectedStagedAdd));
         OnPropertyChanged(nameof(CanCancelSelectedStagedDelete));
         OnPropertyChanged(nameof(CanRevertSelectedStagedModified));
+        OnPropertyChanged(nameof(CanAbortMerge));
         NotifySelectedCommitChangeActionStateChanged();
     }
 
@@ -1967,6 +2093,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanCancelSelectedCLChangeAdd));
         OnPropertyChanged(nameof(CanCancelSelectedCLChangeDelete));
         OnPropertyChanged(nameof(CanRevertSelectedCLChangeModified));
+        OnPropertyChanged(nameof(CanResolveSelectedConflict));
     }
 
     private bool IsSelectedChangeListState(string state)

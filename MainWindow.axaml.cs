@@ -237,6 +237,46 @@ public partial class MainWindow : Window
         await dialog.ShowDialog(this);
     }
 
+    private async void OnOpenMergeConflict(object? sender, RoutedEventArgs e)
+    {
+        var file = await ViewModel.GetSelectedMergeConflictFileAsync();
+        if (file is null)
+        {
+            return;
+        }
+
+        var dialog = new MergeConflictDialog(
+            content => ViewModel.SaveSelectedMergeConflictContentAsync(content),
+            () => ViewModel.UseOursForSelectedConflictAsync(),
+            () => ViewModel.UseTheirsForSelectedConflictAsync(),
+            () => ViewModel.MarkSelectedConflictResolvedAsync())
+        {
+            DataContext = new MergeConflictDialogViewModel(file),
+        };
+
+        await dialog.ShowDialog<bool>(this);
+    }
+
+    private async void OnUseOursConflict(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.UseOursForSelectedConflictAsync();
+    }
+
+    private async void OnUseTheirsConflict(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.UseTheirsForSelectedConflictAsync();
+    }
+
+    private async void OnMarkConflictResolved(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.MarkSelectedConflictResolvedAsync();
+    }
+
+    private async void OnAbortMerge(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.AbortMergeAsync();
+    }
+
     private async void OnSearchByCommit(object? sender, RoutedEventArgs e)
     {
         var searchDialog = new CLSearchDialog();
@@ -399,7 +439,16 @@ public partial class MainWindow : Window
         var canCancelDelete = ViewModel.CanCancelSelectedCLChangeDelete;
         var canRevertModified = ViewModel.CanRevertSelectedCLChangeModified;
         var hasStateAction = canCancelAdd || canCancelDelete || canRevertModified;
+        var canResolveConflict = ViewModel.CanResolveSelectedConflict;
+        var canAbortMerge = ViewModel.CanAbortMerge;
+        var hasMergeAction = canResolveConflict || canAbortMerge;
 
+        OpenMergeConflictMenuItem.IsVisible = canResolveConflict;
+        UseOursMenuItem.IsVisible = canResolveConflict;
+        UseTheirsMenuItem.IsVisible = canResolveConflict;
+        MarkResolvedMenuItem.IsVisible = canResolveConflict;
+        AbortMergeMenuItem.IsVisible = canAbortMerge;
+        CLChangeMergeSeparator.IsVisible = hasMergeAction;
         CancelCLChangeAddMenuItem.IsVisible = canCancelAdd;
         CancelCLChangeDeleteMenuItem.IsVisible = canCancelDelete;
         RevertCLChangeModifiedMenuItem.IsVisible = canRevertModified;

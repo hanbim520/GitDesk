@@ -1,0 +1,97 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitDesk.MergeConflictDialog"
+        Title="Merge Conflict"
+        Width="1500"
+        Height="900"
+        MinWidth="980"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner">
+    <Window.Styles>
+        <Style Selector="Button.toolbar">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+            <Setter Property="Padding" Value="10,0" />
+        </Style>
+        <Style Selector="TextBlock.header">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#222222" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBox.merge-text">
+            <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Courier New" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Background="#F1F1F1">
+        <Border DockPanel.Dock="Top"
+                BorderBrush="#C8C8C8"
+                BorderThickness="0,0,0,1"
+                Background="#E8E8E8"
+                Padding="8,6">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding TitleText}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SummaryText}" FontSize="12" Foreground="#555555" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="toolbar" Content="Use Ours" Click="OnUseOursClicked" />
+                <Button Grid.Column="2" Classes="toolbar" Content="Use Theirs" Click="OnUseTheirsClicked" />
+                <Button Grid.Column="3" Classes="toolbar" Content="Save" Click="OnSaveClicked" />
+                <Button Grid.Column="4" Classes="toolbar" Content="Mark Resolved" Click="OnMarkResolvedClicked" />
+                <Button Grid.Column="5" Classes="toolbar" Content="Close" Click="OnCloseClicked" />
+            </Grid>
+        </Border>
+
+        <Grid RowDefinitions="*,5,*" ColumnDefinitions="*,5,*,5,*" Margin="8">
+            <Border Grid.Row="0" Grid.Column="0" BorderBrush="#C8C8C8" BorderThickness="1" Background="#FFFFFF">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="6,3" Background="#ECECEC" BorderBrush="#D6D6D6" BorderThickness="0,0,0,1">
+                        <TextBlock Classes="header" Text="{Binding BaseHeaderText}" />
+                    </Border>
+                    <TextBox Classes="merge-text" Text="{Binding BaseContent}" IsReadOnly="True" />
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Row="0" Grid.Column="1" Width="5" Background="#D0D0D0" ResizeDirection="Columns" />
+
+            <Border Grid.Row="0" Grid.Column="2" BorderBrush="#C8C8C8" BorderThickness="1" Background="#FFFFFF">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="6,3" Background="#ECECEC" BorderBrush="#D6D6D6" BorderThickness="0,0,0,1">
+                        <TextBlock Classes="header" Text="{Binding OursHeaderText}" />
+                    </Border>
+                    <TextBox Classes="merge-text" Text="{Binding OursContent}" IsReadOnly="True" />
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Row="0" Grid.Column="3" Width="5" Background="#D0D0D0" ResizeDirection="Columns" />
+
+            <Border Grid.Row="0" Grid.Column="4" BorderBrush="#C8C8C8" BorderThickness="1" Background="#FFFFFF">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="6,3" Background="#ECECEC" BorderBrush="#D6D6D6" BorderThickness="0,0,0,1">
+                        <TextBlock Classes="header" Text="{Binding TheirsHeaderText}" />
+                    </Border>
+                    <TextBox Classes="merge-text" Text="{Binding TheirsContent}" IsReadOnly="True" />
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Height="5" Background="#D0D0D0" ResizeDirection="Rows" />
+
+            <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="5" BorderBrush="#C8C8C8" BorderThickness="1" Background="#FFFFFF">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="6,3" Background="#ECECEC" BorderBrush="#D6D6D6" BorderThickness="0,0,0,1">
+                        <TextBlock Classes="header" Text="{Binding WorkingHeaderText}" />
+                    </Border>
+                    <TextBox Classes="merge-text" Text="{Binding WorkingContent, Mode=TwoWay}" />
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

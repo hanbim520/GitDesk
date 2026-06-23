@@ -271,6 +271,12 @@
                                     <DataGrid.ContextMenu>
                                         <ContextMenu Opened="OnCLChangesContextMenuOpened">
                                             <MenuItem x:Name="CompareCLChangeMenuItem" Header="Compare" Click="OnCompareCLChange" />
+                                            <Separator x:Name="CLChangeMergeSeparator" />
+                                            <MenuItem x:Name="OpenMergeConflictMenuItem" Header="Open Merge" Click="OnOpenMergeConflict" />
+                                            <MenuItem x:Name="UseOursMenuItem" Header="Use Ours" Click="OnUseOursConflict" />
+                                            <MenuItem x:Name="UseTheirsMenuItem" Header="Use Theirs" Click="OnUseTheirsConflict" />
+                                            <MenuItem x:Name="MarkResolvedMenuItem" Header="Mark Resolved" Click="OnMarkConflictResolved" />
+                                            <MenuItem x:Name="AbortMergeMenuItem" Header="Abort Merge" Click="OnAbortMerge" />
                                             <Separator x:Name="CLChangeActionSeparator" />
                                             <MenuItem x:Name="CancelCLChangeAddMenuItem" Header="Cancel Add" Click="OnCancelSelectedCLChangeAdd" />
                                             <MenuItem x:Name="CancelCLChangeDeleteMenuItem" Header="Cancel Delete" Click="OnCancelSelectedCLChangeDelete" />

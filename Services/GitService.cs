@@ -592,6 +592,80 @@ public sealed class GitService
             .ToArray();
     }
 
+    public async Task<MergeConflictFile> GetMergeConflictFileAsync(
+        string repositoryRoot,
+        GitChange change,
+        CancellationToken cancellationToken = default)
+    {
+        var path = change.Path.Replace('\\', '/');
+        var baseContent = await GetMergeStageContentAsync(repositoryRoot, 1, path, cancellationToken);
+        var oursContent = await GetMergeStageContentAsync(repositoryRoot, 2, path, cancellationToken);
+        var theirsContent = await GetMergeStageContentAsync(repositoryRoot, 3, path, cancellationToken);
+        var workingContent = await ReadWorkingFileContentAsync(repositoryRoot, path, cancellationToken);
+
+        return new MergeConflictFile(
+            path,
+            change.Status,
+            change.Details,
+            baseContent,
+            oursContent,
+            theirsContent,
+            workingContent);
+    }
+
+    public async Task<bool> SaveWorkingFileContentAsync(
+        string repositoryRoot,
+        string path,
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        var fullPath = GetRepositoryPath(repositoryRoot, path);
+        if (fullPath is null)
+        {
+            return false;
+        }
+
+        var directory = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllTextAsync(fullPath, content, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+        return true;
+    }
+
+    public Task<GitCommandResult> UseOursAsync(
+        string repositoryRoot,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        return RunAsync(repositoryRoot, new[] { "checkout", "--ours", "--", path.Replace('\\', '/') }, cancellationToken);
+    }
+
+    public Task<GitCommandResult> UseTheirsAsync(
+        string repositoryRoot,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        return RunAsync(repositoryRoot, new[] { "checkout", "--theirs", "--", path.Replace('\\', '/') }, cancellationToken);
+    }
+
+    public Task<GitCommandResult> MarkResolvedAsync(
+        string repositoryRoot,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        return RunAsync(repositoryRoot, new[] { "add", "--", path.Replace('\\', '/') }, cancellationToken);
+    }
+
+    public Task<GitCommandResult> AbortMergeAsync(
+        string repositoryRoot,
+        CancellationToken cancellationToken = default)
+    {
+        return RunAsync(repositoryRoot, new[] { "merge", "--abort" }, cancellationToken);
+    }
+
     public static string? ToWorkingDirectory(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -739,6 +813,53 @@ public sealed class GitService
         }
 
         return changes;
+    }
+
+    private async Task<string> GetMergeStageContentAsync(
+        string repositoryRoot,
+        int stage,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var result = await RunAsync(repositoryRoot, new[] { "show", $":{stage}:{path}" }, cancellationToken);
+        if (result.IsSuccess)
+        {
+            return result.StandardOutput;
+        }
+
+        var reason = string.IsNullOrWhiteSpace(result.StandardError)
+            ? "not available"
+            : result.StandardError.Trim();
+        return $"[{reason}]";
+    }
+
+    private static async Task<string> ReadWorkingFileContentAsync(
+        string repositoryRoot,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var fullPath = GetRepositoryPath(repositoryRoot, path);
+        if (fullPath is null || !File.Exists(fullPath))
+        {
+            return string.Empty;
+        }
+
+        return await File.ReadAllTextAsync(fullPath, Encoding.UTF8, cancellationToken);
+    }
+
+    private static string? GetRepositoryPath(string repositoryRoot, string path)
+    {
+        var root = Path.GetFullPath(repositoryRoot);
+        var relativePath = path.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        var fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        return fullPath.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison) ||
+               string.Equals(fullPath, root, comparison)
+            ? fullPath
+            : null;
     }
 
     private static string NormalizeStatusPath(string path)
