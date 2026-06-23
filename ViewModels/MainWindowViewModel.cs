@@ -871,7 +871,39 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         StatusText = $"Checkout {commit.ShortRevision}";
-        var args = new[] { "checkout", "-B", currentBranch, revision };
+        var preResetArgs = new[] { "reset", "--hard" };
+        var preResetResult = await _git.RunAsync(repositoryRoot, preResetArgs);
+        AppendCommand(
+            "Discard local tracked changes before checkout",
+            repositoryRoot,
+            preResetArgs,
+            preResetResult.StandardOutput,
+            preResetResult.StandardError);
+
+        if (!preResetResult.IsSuccess)
+        {
+            await RefreshAsync();
+            StatusText = "Checkout failed";
+            return;
+        }
+
+        var preCleanArgs = new[] { "clean", "-ffdx" };
+        var preCleanResult = await _git.RunAsync(repositoryRoot, preCleanArgs);
+        AppendCommand(
+            "Delete local untracked files before checkout",
+            repositoryRoot,
+            preCleanArgs,
+            preCleanResult.StandardOutput,
+            preCleanResult.StandardError);
+
+        if (!preCleanResult.IsSuccess)
+        {
+            await RefreshAsync();
+            StatusText = "Checkout failed";
+            return;
+        }
+
+        var args = new[] { "checkout", "-f", "-B", currentBranch, revision };
         var result = await _git.RunAsync(repositoryRoot, args);
         AppendCommand(
             $"Checkout {commit.ShortRevision} on {currentBranch}",
@@ -880,8 +912,27 @@ public sealed class MainWindowViewModel : ObservableObject
             result.StandardOutput,
             result.StandardError);
 
+        var checkoutSucceeded = result.IsSuccess;
         if (result.IsSuccess)
         {
+            var resetArgs = new[] { "reset", "--hard", revision };
+            var resetResult = await _git.RunAsync(repositoryRoot, resetArgs);
+            AppendCommand(
+                $"Reset worktree to {commit.ShortRevision}",
+                repositoryRoot,
+                resetArgs,
+                resetResult.StandardOutput,
+                resetResult.StandardError);
+
+            var cleanArgs = new[] { "clean", "-ffdx" };
+            var cleanResult = await _git.RunAsync(repositoryRoot, cleanArgs);
+            AppendCommand(
+                $"Delete files outside {commit.ShortRevision}",
+                repositoryRoot,
+                cleanArgs,
+                cleanResult.StandardOutput,
+                cleanResult.StandardError);
+
             var upstream = await _git.GetUpstreamBranchNameAsync(repositoryRoot);
             if (string.IsNullOrWhiteSpace(upstream))
             {
@@ -889,10 +940,12 @@ public sealed class MainWindowViewModel : ObservableObject
                 var setUpstreamResult = await _git.RunAsync(repositoryRoot, setUpstreamArgs);
                 AppendCommand("Set branch upstream", repositoryRoot, setUpstreamArgs, setUpstreamResult.StandardOutput, setUpstreamResult.StandardError);
             }
+
+            checkoutSucceeded = resetResult.IsSuccess && cleanResult.IsSuccess;
         }
 
         await RefreshAsync();
-        StatusText = result.IsSuccess ? "Ready" : "Checkout failed";
+        StatusText = checkoutSucceeded ? "Ready" : "Checkout failed";
     }
 
     private async Task<bool> CheckoutBranchAsync(string repositoryRoot, string branch)

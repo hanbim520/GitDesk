@@ -675,7 +675,8 @@ public sealed class GitService
             return line;
         }
 
-        return $"{line[..2]} {NormalizeStatusPath(line[3..].Trim())}";
+        var rawStatus = line[..2];
+        return $"{GetStatusDetails(rawStatus),-30} {NormalizeStatusPath(line[3..].Trim())}";
     }
 
     private static IReadOnlyList<GitChange> ParseNameStatus(string output)
