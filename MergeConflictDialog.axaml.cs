@@ -67,6 +67,11 @@ public partial class MergeConflictDialog : Window
         ViewModel.ApplyAllBoth();
     }
 
+    private void OnToggleResultClicked(object? sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleResultVisibility();
+    }
+
     private async void OnUseOursClicked(object? sender, RoutedEventArgs e)
     {
         ViewModel.UseWholeOursFile();

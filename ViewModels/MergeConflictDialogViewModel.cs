@@ -1,4 +1,5 @@
 using GitDesk.Models;
+using Avalonia.Controls;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,6 +11,7 @@ namespace GitDesk.ViewModels;
 public sealed class MergeConflictDialogViewModel : ObservableObject
 {
     private string _workingContent;
+    private bool _isResultVisible = true;
     private MergeConflictBlock? _selectedConflictBlock;
 
     public MergeConflictDialogViewModel(MergeConflictFile file)
@@ -56,6 +58,41 @@ public sealed class MergeConflictDialogViewModel : ObservableObject
 
     public string WorkingHeaderText => $"Merged Result: {File.Path}";
 
+    public bool IsResultVisible
+    {
+        get => _isResultVisible;
+        set
+        {
+            if (SetProperty(ref _isResultVisible, value))
+            {
+                OnPropertyChanged(nameof(ResultSplitterHeight));
+                OnPropertyChanged(nameof(ResultRowHeight));
+                OnPropertyChanged(nameof(ResultRestoreRowHeight));
+                OnPropertyChanged(nameof(IsResultHidden));
+                OnPropertyChanged(nameof(ResultVisibilityIcon));
+                OnPropertyChanged(nameof(ResultVisibilityText));
+            }
+        }
+    }
+
+    public bool IsResultHidden => !IsResultVisible;
+
+    public GridLength ResultSplitterHeight => IsResultVisible
+        ? new GridLength(5)
+        : new GridLength(0);
+
+    public GridLength ResultRowHeight => IsResultVisible
+        ? new GridLength(1, GridUnitType.Star)
+        : new GridLength(0);
+
+    public GridLength ResultRestoreRowHeight => IsResultVisible
+        ? new GridLength(0)
+        : new GridLength(28);
+
+    public string ResultVisibilityIcon => IsResultVisible ? "-" : "+";
+
+    public string ResultVisibilityText => IsResultVisible ? "Hide merged result" : "Show merged result";
+
     public string BaseContent => File.BaseContent;
 
     public string OursContent => File.OursContent;
@@ -72,6 +109,11 @@ public sealed class MergeConflictDialogViewModel : ObservableObject
                 RebuildConflictBlocks();
             }
         }
+    }
+
+    public void ToggleResultVisibility()
+    {
+        IsResultVisible = !IsResultVisible;
     }
 
     public void ApplySelectedOurs()
