@@ -1407,6 +1407,22 @@ public sealed class MainWindowViewModel : ObservableObject
         var result = await _git.RunAsync(repositoryRoot, args);
         AppendCommand(title, repositoryRoot, args, result.StandardOutput, result.StandardError);
 
+        if (!result.IsSuccess && IsUnknownPathspec(result))
+        {
+            if (keepLocal)
+            {
+                AppendOutput($"Path is not tracked by Git; keeping local requires no delete: {SelectedPath}");
+                await RefreshAsync();
+                StatusText = "Ready";
+                return;
+            }
+
+            await CleanUnknownSelectedPathAsync(repositoryRoot);
+            await RefreshAsync();
+            StatusText = PathExists(SelectedPath) ? $"{title} failed" : "Ready";
+            return;
+        }
+
         if (!keepLocal && result.IsSuccess)
         {
             RefreshWorkspaceTree();
