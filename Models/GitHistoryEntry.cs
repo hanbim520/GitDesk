@@ -7,13 +7,17 @@ public sealed class GitHistoryEntry
         string author,
         string date,
         string subject,
-        string publishState = "Remote")
+        string publishState = "Remote",
+        string changeListState = "Commit",
+        GitChange? change = null)
     {
         Revision = revision;
         Author = author;
         Date = date;
         Subject = subject;
         PublishState = publishState;
+        ChangeListState = changeListState;
+        Change = change;
     }
 
     public string Revision { get; }
@@ -30,8 +34,28 @@ public sealed class GitHistoryEntry
 
     public bool IsLocal => PublishState == "Local";
 
+    public string ChangeListState { get; }
+
+    public GitChange? Change { get; }
+
+    public bool IsCommitEntry => Change is null;
+
+    public bool IsChangeEntry => Change is not null;
+
     public GitHistoryEntry WithPublishState(string publishState)
     {
-        return new GitHistoryEntry(Revision, Author, Date, Subject, publishState);
+        return new GitHistoryEntry(Revision, Author, Date, Subject, publishState, ChangeListState, Change);
+    }
+
+    public static GitHistoryEntry FromChange(GitChange change, string changeListState)
+    {
+        return new GitHistoryEntry(
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            change.Path,
+            "Local",
+            changeListState,
+            change);
     }
 }

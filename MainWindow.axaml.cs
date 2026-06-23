@@ -320,6 +320,7 @@ public partial class MainWindow : Window
             $"{title}: {entry.ShortRevision}",
             $"Revision: {entry.Revision}",
             $"State: {entry.PublishState}",
+            $"ChangeListState: {entry.ChangeListState}",
             $"Author: {entry.Author}",
             $"Date: {entry.Date}",
             $"Description: {entry.Subject}");

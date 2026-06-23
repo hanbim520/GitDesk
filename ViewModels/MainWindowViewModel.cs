@@ -17,6 +17,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly GitService _git = new();
     private readonly WorkspaceStore _workspaceStore = new();
     private readonly List<GitHistoryEntry> _allPendingCommits = new();
+    private readonly List<GitHistoryEntry> _allPendingChangeLists = new();
     private string _workspacePath = string.Empty;
     private string _repositoryRoot = string.Empty;
     private string _currentBranch = "No repository";
@@ -284,6 +285,7 @@ public sealed class MainWindowViewModel : ObservableObject
         History.Clear();
         SelectedPendingCommitChanges.Clear();
         _allPendingCommits.Clear();
+        _allPendingChangeLists.Clear();
         PendingCommits.Clear();
         WorkspacePath = string.Empty;
         SelectedWorkspaceHistory = null;
@@ -381,6 +383,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         StatusText = "Refreshing";
         _allPendingCommits.Clear();
+        _allPendingChangeLists.Clear();
         PendingCommits.Clear();
         SelectedPendingCommitChanges.Clear();
         SelectedPendingCommitChangesTitle = "Selected CL Changes";
@@ -430,6 +433,7 @@ public sealed class MainWindowViewModel : ObservableObject
         AppendCommand("Status", repositoryRoot, new[] { "status", "--short", "--branch" }, result.StandardOutput, result.StandardError);
 
         _allPendingCommits.Clear();
+        _allPendingChangeLists.Clear();
         PendingCommits.Clear();
         if (!result.IsSuccess)
         {
@@ -456,6 +460,18 @@ public sealed class MainWindowViewModel : ObservableObject
         foreach (var commit in await _git.GetPendingCommitsAsync(repositoryRoot))
         {
             _allPendingCommits.Add(commit);
+            _allPendingChangeLists.Add(commit);
+        }
+
+        foreach (var change in await _git.GetStatusAsync(repositoryRoot))
+        {
+            var state = GetChangeListState(change);
+            if (state is null)
+            {
+                continue;
+            }
+
+            _allPendingChangeLists.Add(GitHistoryEntry.FromChange(change, state));
         }
 
         ApplyPendingFilter();
@@ -499,13 +515,20 @@ public sealed class MainWindowViewModel : ObservableObject
     private async Task LoadSelectedCommitChangesAsync(GitHistoryEntry? commit)
     {
         var requestVersion = ++_commitChangesRequestVersion;
-        _selectedCommitChangesRevision = commit?.Revision ?? string.Empty;
+        _selectedCommitChangesRevision = commit is { IsCommitEntry: true } ? commit.Revision : string.Empty;
         SelectedCommitChange = null;
         SelectedPendingCommitChanges.Clear();
 
         if (commit is null)
         {
             SelectedPendingCommitChangesTitle = "Selected CL Changes";
+            return;
+        }
+
+        if (commit.Change is { } selectedChange)
+        {
+            SelectedPendingCommitChanges.Add(selectedChange);
+            SelectedPendingCommitChangesTitle = $"Selected CL Changes - {commit.ChangeListState} ({selectedChange.Path})";
             return;
         }
 
@@ -640,7 +663,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task RevertSelectedPendingCommitAsync()
     {
-        if (SelectedPendingCommit is null)
+        if (SelectedPendingCommit is not { IsCommitEntry: true })
         {
             AppendOutput("No ChangeList selected.");
             return;
@@ -654,7 +677,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task RestoreSelectedPendingCommitAsync()
     {
-        if (SelectedPendingCommit is null)
+        if (SelectedPendingCommit is not { IsCommitEntry: true })
         {
             AppendOutput("No ChangeList selected.");
             return;
@@ -668,7 +691,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task DeleteSelectedHeadCommitAsync(bool keepChanges)
     {
-        if (SelectedPendingCommit is null)
+        if (SelectedPendingCommit is not { IsCommitEntry: true })
         {
             AppendOutput("No ChangeList selected.");
             return;
@@ -1045,12 +1068,13 @@ public sealed class MainWindowViewModel : ObservableObject
 
         var filter = FilterText.Trim();
         var visibleCommits = string.IsNullOrWhiteSpace(filter)
-            ? _allPendingCommits
-            : _allPendingCommits.Where(commit =>
+            ? _allPendingChangeLists
+            : _allPendingChangeLists.Where(commit =>
                 commit.Revision.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
                 commit.Author.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
                 commit.Date.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                commit.Subject.Contains(filter, StringComparison.OrdinalIgnoreCase));
+                commit.Subject.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                commit.ChangeListState.Contains(filter, StringComparison.OrdinalIgnoreCase));
 
         foreach (var commit in visibleCommits)
         {
@@ -1058,6 +1082,27 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(PendingCountText));
+    }
+
+    private static string? GetChangeListState(GitChange change)
+    {
+        if (string.IsNullOrWhiteSpace(change.Status))
+        {
+            return null;
+        }
+
+        return change.Status[0] switch
+        {
+            'A' => "Added",
+            'M' => "Modified",
+            'D' => "Deleted",
+            'R' => "Renamed",
+            'C' => "Copied",
+            'T' => "Type changed",
+            'U' => "Unmerged",
+            '?' => "Untracked",
+            _ => change.Details,
+        };
     }
 
     private static IEnumerable<string> SplitOutput(string text)
