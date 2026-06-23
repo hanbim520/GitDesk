@@ -30,6 +30,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _isBusy;
     private int _busyDepth;
     private int _commitChangesRequestVersion;
+    private int _historyRequestVersion;
     private string _selectedCommitChangesRevision = string.Empty;
     private string _busyText = "Working";
     private string? _selectedWorkspaceHistory;
@@ -582,28 +583,56 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private async Task LoadHistoryAsync(string repositoryRoot, string? path)
     {
-        History.Clear();
         var localRevisions = _allPendingCommits
             .Select(commit => commit.Revision)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        var entries = new List<GitHistoryEntry>();
         foreach (var entry in await _git.GetHistoryAsync(repositoryRoot, path))
         {
             var publishState = localRevisions.Contains(entry.Revision) ? "Local" : "Remote";
-            History.Add(entry.WithPublishState(publishState));
+            entries.Add(entry.WithPublishState(publishState));
+        }
+
+        History.Clear();
+        foreach (var entry in entries)
+        {
+            History.Add(entry);
         }
     }
 
-    private async Task LoadHistoryForSelectedAsync()
+    public async Task LoadHistoryForSelectedAsync()
     {
+        var requestVersion = ++_historyRequestVersion;
+        var selectedPath = SelectedPath;
         var repositoryRoot = await ResolveRepositoryRootAsync();
-        if (repositoryRoot is null)
+        if (repositoryRoot is null || requestVersion != _historyRequestVersion)
         {
             return;
         }
 
-        await LoadHistoryAsync(repositoryRoot, SelectedPath);
-        AppendOutput($"History loaded for: {SelectedPath}");
+        var localRevisions = _allPendingCommits
+            .Select(commit => commit.Revision)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var entries = new List<GitHistoryEntry>();
+        foreach (var entry in await _git.GetHistoryAsync(repositoryRoot, selectedPath))
+        {
+            var publishState = localRevisions.Contains(entry.Revision) ? "Local" : "Remote";
+            entries.Add(entry.WithPublishState(publishState));
+        }
+
+        if (requestVersion != _historyRequestVersion)
+        {
+            return;
+        }
+
+        History.Clear();
+        foreach (var entry in entries)
+        {
+            History.Add(entry);
+        }
+
+        AppendOutput($"History loaded for: {selectedPath}");
     }
 
     public void ClearSelectedCommitChanges()

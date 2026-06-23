@@ -119,6 +119,7 @@
                         <TreeView x:Name="WorkspaceTree"
                                   ItemsSource="{Binding Roots}"
                                   SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                                  SelectionChanged="OnWorkspaceTreeSelectionChanged"
                                   PointerPressed="OnWorkspaceTreePointerPressed">
                             <TreeView.ContextMenu>
                                 <ContextMenu>

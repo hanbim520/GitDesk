@@ -15,6 +15,7 @@ namespace GitDesk;
 public partial class MainWindow : Window
 {
     private bool _isSettingsDialogOpen;
+    private bool _suppressWorkspaceTreeHistoryLoad;
     private MainWindowViewModel ViewModel => (MainWindowViewModel)DataContext!;
 
     public MainWindow()
@@ -66,8 +67,33 @@ public partial class MainWindow : Window
             return;
         }
 
-        WorkspaceTree.SelectedItem = node;
+        _suppressWorkspaceTreeHistoryLoad = true;
+        try
+        {
+            WorkspaceTree.SelectedItem = node;
+            ViewModel.SelectedNode = node;
+        }
+        finally
+        {
+            _suppressWorkspaceTreeHistoryLoad = false;
+        }
+    }
+
+    private async void OnWorkspaceTreeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressWorkspaceTreeHistoryLoad)
+        {
+            return;
+        }
+
+        if (WorkspaceTree.SelectedItem is not FileSystemNode node || node.IsPlaceholder)
+        {
+            return;
+        }
+
         ViewModel.SelectedNode = node;
+        SelectHistoryTab();
+        await ViewModel.RunBusyAsync("Loading history", ViewModel.LoadHistoryForSelectedAsync);
     }
 
     private void OnHistoryGridPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -489,6 +515,18 @@ public partial class MainWindow : Window
             });
 
         return folders.Count > 0 ? folders[0].Path.LocalPath : null;
+    }
+
+    private void SelectHistoryTab()
+    {
+        foreach (var item in MainCommitTabControl.Items)
+        {
+            if (item is TabItem { Header: "History" } tab)
+            {
+                MainCommitTabControl.SelectedItem = tab;
+                return;
+            }
+        }
     }
 
     private static FileSystemNode? FindNodeFromSource(object? source)
