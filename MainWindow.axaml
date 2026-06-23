@@ -360,6 +360,35 @@
                             Command="{Binding ToggleOutputVisibilityCommand}" />
                 </Grid>
             </Border>
+
+            <Border Grid.Row="0"
+                    Grid.RowSpan="4"
+                    ZIndex="50"
+                    Background="#66000000"
+                    IsVisible="{Binding IsBusy}">
+                <Border Width="340"
+                        Padding="22"
+                        CornerRadius="6"
+                        Background="#F7F7F7"
+                        BorderBrush="#BDBDBD"
+                        BorderThickness="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="{Binding BusyText}"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" />
+                        <ProgressBar Width="260"
+                                     Height="16"
+                                     IsIndeterminate="True" />
+                        <TextBlock Text="Command is running, please wait..."
+                                   FontSize="12"
+                                   Foreground="#555555"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

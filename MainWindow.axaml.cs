@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        await ViewModel.InitializeWorkspaceHistoryAsync();
+        await ViewModel.RunBusyAsync("Loading workspace", ViewModel.InitializeWorkspaceHistoryAsync);
     }
 
     private async void OnBrowseWorkspace(object? sender, RoutedEventArgs e)
@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         var folder = await PickFolderAsync();
         if (folder is not null)
         {
-            await ViewModel.OpenWorkspaceAsync(folder);
+            await ViewModel.RunBusyAsync("Opening workspace", () => ViewModel.OpenWorkspaceAsync(folder));
         }
     }
 
@@ -49,7 +49,7 @@ public partial class MainWindow : Window
 
         if (WorkspaceSelector.SelectedItem is string path)
         {
-            await ViewModel.OpenWorkspaceFromHistoryAsync(path);
+            await ViewModel.RunBusyAsync("Opening workspace", () => ViewModel.OpenWorkspaceFromHistoryAsync(path));
         }
     }
 
@@ -148,57 +148,57 @@ public partial class MainWindow : Window
 
     private async void OnRevertPendingCommit(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.RevertSelectedPendingCommitAsync();
+        await ViewModel.RunBusyAsync("Reverting commit", ViewModel.RevertSelectedPendingCommitAsync);
     }
 
     private async void OnCancelStagedAdd(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.CancelSelectedStagedAddAsync();
+        await ViewModel.RunBusyAsync("Canceling add", ViewModel.CancelSelectedStagedAddAsync);
     }
 
     private async void OnCancelStagedDelete(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.CancelSelectedStagedDeleteAsync();
+        await ViewModel.RunBusyAsync("Canceling delete", ViewModel.CancelSelectedStagedDeleteAsync);
     }
 
     private async void OnRevertStagedModified(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.RevertSelectedStagedModifiedAsync();
+        await ViewModel.RunBusyAsync("Reverting modified files", ViewModel.RevertSelectedStagedModifiedAsync);
     }
 
     private async void OnCancelSelectedCLChangeAdd(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.CancelSelectedCLChangeAddAsync();
+        await ViewModel.RunBusyAsync("Canceling add", ViewModel.CancelSelectedCLChangeAddAsync);
     }
 
     private async void OnCancelSelectedCLChangeDelete(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.CancelSelectedCLChangeDeleteAsync();
+        await ViewModel.RunBusyAsync("Canceling delete", ViewModel.CancelSelectedCLChangeDeleteAsync);
     }
 
     private async void OnRevertSelectedCLChangeModified(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.RevertSelectedCLChangeModifiedAsync();
+        await ViewModel.RunBusyAsync("Reverting modified file", ViewModel.RevertSelectedCLChangeModifiedAsync);
     }
 
     private async void OnRestorePendingCommit(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.RestoreSelectedPendingCommitAsync();
+        await ViewModel.RunBusyAsync("Restoring commit changes", ViewModel.RestoreSelectedPendingCommitAsync);
     }
 
     private async void OnDeletePendingCommitKeepChanges(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.DeleteSelectedHeadCommitAsync(keepChanges: true);
+        await ViewModel.RunBusyAsync("Deleting commit", () => ViewModel.DeleteSelectedHeadCommitAsync(keepChanges: true));
     }
 
     private async void OnDeletePendingCommitDiscardChanges(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.DeleteSelectedHeadCommitAsync(keepChanges: false);
+        await ViewModel.RunBusyAsync("Deleting commit", () => ViewModel.DeleteSelectedHeadCommitAsync(keepChanges: false));
     }
 
     private async void OnCheckoutHistoryCommit(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.CheckoutSelectedHistoryCommitAsync();
+        await ViewModel.RunBusyAsync("Checking out commit", ViewModel.CheckoutSelectedHistoryCommitAsync);
     }
 
     private async void OnCopyPendingContent(object? sender, RoutedEventArgs e)
@@ -223,7 +223,7 @@ public partial class MainWindow : Window
 
     private async void OnCompareCLChange(object? sender, RoutedEventArgs e)
     {
-        var diff = await ViewModel.GetSelectedCommitChangeDiffAsync();
+        var diff = await ViewModel.RunBusyAsync("Loading compare", ViewModel.GetSelectedCommitChangeDiffAsync);
         if (diff is null)
         {
             return;
@@ -239,17 +239,17 @@ public partial class MainWindow : Window
 
     private async void OnOpenMergeConflict(object? sender, RoutedEventArgs e)
     {
-        var file = await ViewModel.GetSelectedMergeConflictFileAsync();
+        var file = await ViewModel.RunBusyAsync("Opening merge", ViewModel.GetSelectedMergeConflictFileAsync);
         if (file is null)
         {
             return;
         }
 
         var dialog = new MergeConflictDialog(
-            content => ViewModel.SaveSelectedMergeConflictContentAsync(content),
-            () => ViewModel.UseOursForSelectedConflictAsync(),
-            () => ViewModel.UseTheirsForSelectedConflictAsync(),
-            () => ViewModel.MarkSelectedConflictResolvedAsync())
+            content => ViewModel.RunBusyAsync("Saving merge file", () => ViewModel.SaveSelectedMergeConflictContentAsync(content)),
+            () => ViewModel.RunBusyAsync("Using ours", ViewModel.UseOursForSelectedConflictAsync),
+            () => ViewModel.RunBusyAsync("Using theirs", ViewModel.UseTheirsForSelectedConflictAsync),
+            () => ViewModel.RunBusyAsync("Marking resolved", ViewModel.MarkSelectedConflictResolvedAsync))
         {
             DataContext = new MergeConflictDialogViewModel(file),
         };
@@ -259,22 +259,22 @@ public partial class MainWindow : Window
 
     private async void OnUseOursConflict(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.UseOursForSelectedConflictAsync();
+        await ViewModel.RunBusyAsync("Using ours", ViewModel.UseOursForSelectedConflictAsync);
     }
 
     private async void OnUseTheirsConflict(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.UseTheirsForSelectedConflictAsync();
+        await ViewModel.RunBusyAsync("Using theirs", ViewModel.UseTheirsForSelectedConflictAsync);
     }
 
     private async void OnMarkConflictResolved(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.MarkSelectedConflictResolvedAsync();
+        await ViewModel.RunBusyAsync("Marking resolved", ViewModel.MarkSelectedConflictResolvedAsync);
     }
 
     private async void OnAbortMerge(object? sender, RoutedEventArgs e)
     {
-        await ViewModel.AbortMergeAsync();
+        await ViewModel.RunBusyAsync("Aborting merge", ViewModel.AbortMergeAsync);
     }
 
     private async void OnSearchByCommit(object? sender, RoutedEventArgs e)
@@ -286,13 +286,13 @@ public partial class MainWindow : Window
             return;
         }
 
-        var commit = await ViewModel.FindCommitByCommitAsync(searchDialog.CommitText);
+        var commit = await ViewModel.RunBusyAsync("Searching commit", () => ViewModel.FindCommitByCommitAsync(searchDialog.CommitText));
         if (commit is null)
         {
             return;
         }
 
-        var changes = await ViewModel.GetCommitChangesAsync(commit);
+        var changes = await ViewModel.RunBusyAsync("Loading commit changes", () => ViewModel.GetCommitChangesAsync(commit));
         var dialog = new CLChangesDialog
         {
             DataContext = new CLChangesDialogViewModel(
@@ -307,7 +307,7 @@ public partial class MainWindow : Window
 
     private async void OnCommitClicked(object? sender, RoutedEventArgs e)
     {
-        var changes = await ViewModel.GetWorkingTreeChangesAsync();
+        var changes = await ViewModel.RunBusyAsync("Loading working tree changes", ViewModel.GetWorkingTreeChangesAsync);
         var dialogViewModel = new CommitDialogViewModel(ViewModel.CommitMessage, changes);
         var dialog = new CommitDialog
         {
@@ -320,9 +320,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        var committed = await ViewModel.CommitSelectedFilesAsync(
-            dialogViewModel.CommitMessage,
-            dialogViewModel.SelectedFiles);
+        var committed = await ViewModel.RunBusyAsync(
+            "Committing",
+            () => ViewModel.CommitSelectedFilesAsync(
+                dialogViewModel.CommitMessage,
+                dialogViewModel.SelectedFiles));
 
         if (committed)
         {
@@ -332,13 +334,14 @@ public partial class MainWindow : Window
 
     private async void OnPushClicked(object? sender, RoutedEventArgs e)
     {
-        var branches = await ViewModel.GetLocalBranchesAsync();
+        var branches = await ViewModel.RunBusyAsync("Loading branches", ViewModel.GetLocalBranchesAsync);
         if (branches.Count == 0)
         {
             return;
         }
 
-        var dialogViewModel = new PushDialogViewModel(branches, await ViewModel.GetCurrentBranchNameAsync());
+        var currentBranch = await ViewModel.RunBusyAsync("Loading current branch", ViewModel.GetCurrentBranchNameAsync);
+        var dialogViewModel = new PushDialogViewModel(branches, currentBranch);
         var dialog = new PushDialog
         {
             DataContext = dialogViewModel,
@@ -350,12 +353,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        await ViewModel.PushBranchToOriginAsync(dialogViewModel.SelectedBranch);
+        await ViewModel.RunBusyAsync("Pushing", () => ViewModel.PushBranchToOriginAsync(dialogViewModel.SelectedBranch));
     }
 
     private async void OnSettingsClicked(object? sender, RoutedEventArgs e)
     {
-        await ShowSettingsDialogAsync();
+        await ViewModel.RunBusyAsync("Opening settings", ShowSettingsDialogAsync);
     }
 
     private async Task ShowSettingsDialogAsync()

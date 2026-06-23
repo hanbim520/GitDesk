@@ -27,8 +27,11 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _filterText = string.Empty;
     private string _selectedPendingCommitChangesTitle = "Selected CL Changes";
     private bool _isOutputVisible = true;
+    private bool _isBusy;
+    private int _busyDepth;
     private int _commitChangesRequestVersion;
     private string _selectedCommitChangesRevision = string.Empty;
+    private string _busyText = "Working";
     private string? _selectedWorkspaceHistory;
     private FileSystemNode? _selectedNode;
     private GitHistoryEntry? _selectedPendingCommit;
@@ -39,24 +42,24 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel()
     {
-        RefreshCommand = new AsyncRelayCommand(_ => RefreshAsync());
-        InitRepositoryCommand = new AsyncRelayCommand(_ => InitRepositoryAsync());
-        FetchCommand = new AsyncRelayCommand(_ => RunRepositoryCommandAsync("Fetch", new[] { "fetch", "--all", "--prune" }, true));
-        PullCommand = new AsyncRelayCommand(_ => PullAsync());
-        CommitCommand = new AsyncRelayCommand(_ => CommitAsync());
+        RefreshCommand = new AsyncRelayCommand(_ => RunBusyAsync("Refreshing", RefreshAsync));
+        InitRepositoryCommand = new AsyncRelayCommand(_ => RunBusyAsync("Initializing repository", InitRepositoryAsync));
+        FetchCommand = new AsyncRelayCommand(_ => RunBusyAsync("Fetching", () => RunRepositoryCommandAsync("Fetch", new[] { "fetch", "--all", "--prune" }, true)));
+        PullCommand = new AsyncRelayCommand(_ => RunBusyAsync("Pulling", PullAsync));
+        CommitCommand = new AsyncRelayCommand(_ => RunBusyAsync("Committing", CommitAsync));
         OpenSelectedFolderCommand = new AsyncRelayCommand(_ => OpenSelectedFolderAsync());
-        RevertPendingCommitCommand = new AsyncRelayCommand(_ => RevertSelectedPendingCommitAsync());
-        RestorePendingCommitCommand = new AsyncRelayCommand(_ => RestoreSelectedPendingCommitAsync());
-        DeleteHeadPendingCommitKeepChangesCommand = new AsyncRelayCommand(_ => DeleteSelectedHeadCommitAsync(keepChanges: true));
-        DeleteHeadPendingCommitDiscardChangesCommand = new AsyncRelayCommand(_ => DeleteSelectedHeadCommitAsync(keepChanges: false));
-        AddSelectedCommand = new AsyncRelayCommand(_ => RunPathCommandAsync("Add", new[] { "add" }, true));
-        RevertSelectedCommand = new AsyncRelayCommand(_ => RevertSelectedPathAsync());
-        DeleteSelectedKeepLocalCommand = new AsyncRelayCommand(_ => DeleteSelectedPathAsync(keepLocal: true));
-        DeleteSelectedDeleteLocalCommand = new AsyncRelayCommand(_ => DeleteSelectedPathAsync(keepLocal: false));
-        DiffSelectedCommand = new AsyncRelayCommand(_ => ShowDiffAsync());
-        LogSelectedCommand = new AsyncRelayCommand(_ => LoadHistoryForSelectedAsync());
-        CheckoutHistoryCommitCommand = new AsyncRelayCommand(_ => CheckoutSelectedHistoryCommitAsync());
-        StatusSelectedCommand = new AsyncRelayCommand(_ => RefreshAsync());
+        RevertPendingCommitCommand = new AsyncRelayCommand(_ => RunBusyAsync("Reverting commit", RevertSelectedPendingCommitAsync));
+        RestorePendingCommitCommand = new AsyncRelayCommand(_ => RunBusyAsync("Restoring commit changes", RestoreSelectedPendingCommitAsync));
+        DeleteHeadPendingCommitKeepChangesCommand = new AsyncRelayCommand(_ => RunBusyAsync("Deleting commit", () => DeleteSelectedHeadCommitAsync(keepChanges: true)));
+        DeleteHeadPendingCommitDiscardChangesCommand = new AsyncRelayCommand(_ => RunBusyAsync("Deleting commit", () => DeleteSelectedHeadCommitAsync(keepChanges: false)));
+        AddSelectedCommand = new AsyncRelayCommand(_ => RunBusyAsync("Adding selected path", () => RunPathCommandAsync("Add", new[] { "add" }, true)));
+        RevertSelectedCommand = new AsyncRelayCommand(_ => RunBusyAsync("Reverting selected path", RevertSelectedPathAsync));
+        DeleteSelectedKeepLocalCommand = new AsyncRelayCommand(_ => RunBusyAsync("Deleting selected path", () => DeleteSelectedPathAsync(keepLocal: true)));
+        DeleteSelectedDeleteLocalCommand = new AsyncRelayCommand(_ => RunBusyAsync("Deleting selected path", () => DeleteSelectedPathAsync(keepLocal: false)));
+        DiffSelectedCommand = new AsyncRelayCommand(_ => RunBusyAsync("Diffing selected path", ShowDiffAsync));
+        LogSelectedCommand = new AsyncRelayCommand(_ => RunBusyAsync("Loading history", LoadHistoryForSelectedAsync));
+        CheckoutHistoryCommitCommand = new AsyncRelayCommand(_ => RunBusyAsync("Checking out commit", CheckoutSelectedHistoryCommitAsync));
+        StatusSelectedCommand = new AsyncRelayCommand(_ => RunBusyAsync("Refreshing", RefreshAsync));
         ToggleOutputVisibilityCommand = new AsyncRelayCommand(_ =>
         {
             IsOutputVisible = !IsOutputVisible;
@@ -295,6 +298,51 @@ public sealed class MainWindowViewModel : ObservableObject
     public string OutputVisibilityButtonText => IsOutputVisible ? "Hide Output" : "Show Output";
 
     public string OutputVisibilityMenuText => IsOutputVisible ? "Hide Output" : "Show Output";
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set => SetProperty(ref _isBusy, value);
+    }
+
+    public string BusyText
+    {
+        get => _busyText;
+        private set => SetProperty(ref _busyText, value);
+    }
+
+    public async Task RunBusyAsync(string text, Func<Task> action)
+    {
+        using var scope = BeginBusy(text);
+        await action();
+    }
+
+    public async Task<T> RunBusyAsync<T>(string text, Func<Task<T>> action)
+    {
+        using var scope = BeginBusy(text);
+        return await action();
+    }
+
+    private IDisposable BeginBusy(string text)
+    {
+        _busyDepth++;
+        BusyText = text;
+        IsBusy = true;
+        return new BusyScope(EndBusy);
+    }
+
+    private void EndBusy()
+    {
+        if (_busyDepth > 0)
+        {
+            _busyDepth--;
+        }
+
+        if (_busyDepth == 0)
+        {
+            IsBusy = false;
+        }
+    }
 
     public async Task InitializeWorkspaceHistoryAsync()
     {
@@ -2345,5 +2393,27 @@ public sealed class MainWindowViewModel : ObservableObject
             : StringComparer.Ordinal;
 
         return comparer.Equals(Path.GetFullPath(left), Path.GetFullPath(right));
+    }
+
+    private sealed class BusyScope : IDisposable
+    {
+        private readonly Action _dispose;
+        private bool _isDisposed;
+
+        public BusyScope(Action dispose)
+        {
+            _dispose = dispose;
+        }
+
+        public void Dispose()
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+            _dispose();
+        }
     }
 }
