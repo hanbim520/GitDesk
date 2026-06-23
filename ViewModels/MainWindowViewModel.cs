@@ -467,7 +467,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private async Task LoadStatusAsync(string repositoryRoot)
     {
         var result = await _git.RunAsync(repositoryRoot, new[] { "status", "--short", "--branch" });
-        AppendCommand("Status", repositoryRoot, new[] { "status", "--short", "--branch" }, result.StandardOutput, result.StandardError);
+        var statusOutput = result.IsSuccess ? _git.FormatStatusOutput(result.StandardOutput) : result.StandardOutput;
+        AppendCommand("Status", repositoryRoot, new[] { "status", "--short", "--branch" }, statusOutput, result.StandardError);
 
         if (!result.IsSuccess)
         {

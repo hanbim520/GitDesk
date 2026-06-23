@@ -359,6 +359,14 @@ public sealed class GitService
         return ParseStatus(result.StandardOutput);
     }
 
+    public string FormatStatusOutput(string output)
+    {
+        return string.Join(
+            Environment.NewLine,
+            output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(FormatStatusLine));
+    }
+
     public async Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(
         string repositoryRoot,
         string? path = null,
@@ -591,6 +599,16 @@ public sealed class GitService
         return changes;
     }
 
+    private static string FormatStatusLine(string line)
+    {
+        if (line.StartsWith("## ", StringComparison.Ordinal) || line.Length < 4)
+        {
+            return line;
+        }
+
+        return $"{line[..2]} {NormalizeStatusPath(line[3..].Trim())}";
+    }
+
     private static IReadOnlyList<GitChange> ParseNameStatus(string output)
     {
         var changes = new List<GitChange>();
@@ -640,13 +658,13 @@ public sealed class GitService
 
     private static string UnescapeGitQuotedPath(string path)
     {
-        var builder = new StringBuilder(path.Length);
+        using var bytes = new MemoryStream(path.Length);
         for (var i = 0; i < path.Length; i++)
         {
             var current = path[i];
             if (current != '\\' || i + 1 >= path.Length)
             {
-                builder.Append(current);
+                WriteUtf8(bytes, current);
                 continue;
             }
 
@@ -661,11 +679,11 @@ public sealed class GitService
                     count++;
                 }
 
-                builder.Append((char)value);
+                bytes.WriteByte((byte)value);
                 continue;
             }
 
-            builder.Append(next switch
+            var unescaped = next switch
             {
                 'a' => '\a',
                 'b' => '\b',
@@ -675,10 +693,17 @@ public sealed class GitService
                 't' => '\t',
                 'v' => '\v',
                 _ => next,
-            });
+            };
+            WriteUtf8(bytes, unescaped);
         }
 
-        return builder.ToString();
+        return Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
+    private static void WriteUtf8(Stream stream, char value)
+    {
+        var buffer = Encoding.UTF8.GetBytes(value.ToString());
+        stream.Write(buffer, 0, buffer.Length);
     }
 
     private static string GetNameStatusDetails(string status)
