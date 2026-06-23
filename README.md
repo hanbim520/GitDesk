@@ -13,6 +13,7 @@ GitDesk is a cross-platform desktop Git UI built with C# and Avalonia. It focuse
 - Open a standalone commit changes window from commit search.
 - Compare changed files in a WinMerge-style two-pane compare window.
 - Run common Git commands including status, add, commit, revert, fetch, pull, push, checkout, and log.
+- Push opens a branch selection dialog and defaults to the current branch.
 - Configure Git identity and GitHub HTTPS credentials through `Tools -> Settings`.
 - Hide and restore the output panel.
 - Copy full commit content from `ChangeLists` and `History`.

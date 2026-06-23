@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitDesk.PushDialog"
+        Title="Push"
+        Width="520"
+        Height="260"
+        MinWidth="460"
+        MinHeight="220"
+        WindowStartupLocation="CenterOwner">
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="Button.dialog-action">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="*,Auto" Margin="18" RowSpacing="14">
+        <StackPanel Grid.Row="0" Spacing="12">
+            <TextBlock Classes="label" Text="Branch" />
+            <ComboBox ItemsSource="{Binding Branches}"
+                      SelectedItem="{Binding SelectedBranch, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" />
+            <TextBlock Text="Push selected local branch to origin with the same branch name."
+                       Foreground="#555555"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="{Binding ErrorText}"
+                       Foreground="#B00020"
+                       IsVisible="{Binding HasError}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Classes="dialog-action" Content="Cancel" Click="OnCancelClicked" />
+            <Button Classes="dialog-action" Content="Push" Click="OnPushClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

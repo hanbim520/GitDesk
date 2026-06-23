@@ -250,6 +250,27 @@ public sealed class GitService
         return string.IsNullOrWhiteSpace(branch) || branch == "HEAD" ? null : branch;
     }
 
+    public async Task<IReadOnlyList<string>> GetLocalBranchesAsync(
+        string repositoryRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(
+            repositoryRoot,
+            new[] { "for-each-ref", "--format=%(refname:short)", "refs/heads" },
+            cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return Array.Empty<string>();
+        }
+
+        return result.StandardOutput
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(branch => branch.Trim())
+            .Where(branch => !string.IsNullOrWhiteSpace(branch))
+            .OrderBy(branch => branch, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public async Task<string?> GetUpstreamBranchNameAsync(
         string repositoryRoot,
         CancellationToken cancellationToken = default)

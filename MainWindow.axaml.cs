@@ -141,11 +141,6 @@ public partial class MainWindow : Window
         await ViewModel.RevertSelectedPendingCommitAsync();
     }
 
-    private async void OnPushPendingToOrigin(object? sender, RoutedEventArgs e)
-    {
-        await ViewModel.PushToOriginAsync();
-    }
-
     private async void OnRestorePendingCommit(object? sender, RoutedEventArgs e)
     {
         await ViewModel.RestoreSelectedPendingCommitAsync();
@@ -253,6 +248,29 @@ public partial class MainWindow : Window
         {
             ViewModel.CommitMessage = string.Empty;
         }
+    }
+
+    private async void OnPushClicked(object? sender, RoutedEventArgs e)
+    {
+        var branches = await ViewModel.GetLocalBranchesAsync();
+        if (branches.Count == 0)
+        {
+            return;
+        }
+
+        var dialogViewModel = new PushDialogViewModel(branches, await ViewModel.GetCurrentBranchNameAsync());
+        var dialog = new PushDialog
+        {
+            DataContext = dialogViewModel,
+        };
+
+        var accepted = await dialog.ShowDialog<bool>(this);
+        if (!accepted || string.IsNullOrWhiteSpace(dialogViewModel.SelectedBranch))
+        {
+            return;
+        }
+
+        await ViewModel.PushBranchToOriginAsync(dialogViewModel.SelectedBranch);
     }
 
     private async void OnSettingsClicked(object? sender, RoutedEventArgs e)

@@ -43,7 +43,6 @@ public sealed class MainWindowViewModel : ObservableObject
         InitRepositoryCommand = new AsyncRelayCommand(_ => InitRepositoryAsync());
         FetchCommand = new AsyncRelayCommand(_ => RunRepositoryCommandAsync("Fetch", new[] { "fetch", "--all", "--prune" }, true));
         PullCommand = new AsyncRelayCommand(_ => RunRepositoryCommandAsync("Pull", new[] { "pull", "--ff-only" }, true));
-        PushCommand = new AsyncRelayCommand(_ => PushToOriginAsync());
         CommitCommand = new AsyncRelayCommand(_ => CommitAsync());
         OpenSelectedFolderCommand = new AsyncRelayCommand(_ => OpenSelectedFolderAsync());
         RevertPendingCommitCommand = new AsyncRelayCommand(_ => RevertSelectedPendingCommitAsync());
@@ -96,8 +95,6 @@ public sealed class MainWindowViewModel : ObservableObject
     public AsyncRelayCommand FetchCommand { get; }
 
     public AsyncRelayCommand PullCommand { get; }
-
-    public AsyncRelayCommand PushCommand { get; }
 
     public AsyncRelayCommand CommitCommand { get; }
 
@@ -990,21 +987,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task PushToOriginAsync()
     {
-        var repositoryRoot = await ResolveRepositoryRootAsync();
-        if (repositoryRoot is null)
-        {
-            return;
-        }
-
-        if (SelectedPendingCommit is { IsCommitEntry: true } selectedCommit &&
-            !await _git.IsAncestorOfHeadAsync(repositoryRoot, selectedCommit.Revision))
-        {
-            AppendOutput($"Selected ChangeList {selectedCommit.ShortRevision} is not on the current branch HEAD. Checkout its branch before pushing it.");
-            StatusText = "Push failed";
-            return;
-        }
-
-        var branch = await _git.GetCurrentBranchNameAsync(repositoryRoot);
+        var branch = await GetCurrentBranchNameAsync();
         if (string.IsNullOrWhiteSpace(branch))
         {
             AppendOutput("Cannot push from detached HEAD. Checkout a branch before pushing.");
@@ -1012,12 +995,70 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var upstream = await _git.GetUpstreamBranchNameAsync(repositoryRoot);
-        var args = string.IsNullOrWhiteSpace(upstream)
-            ? new[] { "push", "-u", "origin", $"HEAD:refs/heads/{branch}" }
-            : new[] { "push", "origin", $"HEAD:{GetOriginBranchName(upstream, branch)}" };
+        await PushBranchToOriginAsync(branch);
+    }
 
-        await RunRepositoryCommandAsync("Push to origin", args, true);
+    public async Task<string?> GetCurrentBranchNameAsync()
+    {
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return null;
+        }
+
+        return await _git.GetCurrentBranchNameAsync(repositoryRoot);
+    }
+
+    public async Task<IReadOnlyList<string>> GetLocalBranchesAsync()
+    {
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var branches = await _git.GetLocalBranchesAsync(repositoryRoot);
+        if (branches.Count == 0)
+        {
+            AppendOutput("No local branches found.");
+        }
+
+        var currentBranch = await _git.GetCurrentBranchNameAsync(repositoryRoot);
+        return string.IsNullOrWhiteSpace(currentBranch)
+            ? branches
+            : branches
+                .OrderByDescending(branch => string.Equals(branch, currentBranch, StringComparison.Ordinal))
+                .ThenBy(branch => branch, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+    }
+
+    public async Task PushBranchToOriginAsync(string branch)
+    {
+        if (string.IsNullOrWhiteSpace(branch))
+        {
+            AppendOutput("No branch selected.");
+            StatusText = "Push failed";
+            return;
+        }
+
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return;
+        }
+
+        var branches = await _git.GetLocalBranchesAsync(repositoryRoot);
+        if (!branches.Contains(branch, StringComparer.Ordinal))
+        {
+            AppendOutput($"Local branch does not exist: {branch}");
+            StatusText = "Push failed";
+            return;
+        }
+
+        await RunRepositoryCommandAsync(
+            $"Push {branch}",
+            new[] { "push", "-u", "origin", $"refs/heads/{branch}:refs/heads/{branch}" },
+            true);
     }
 
     private async Task RunSelectedPendingCommitCommandAsync(string title, IReadOnlyList<string> arguments, bool refreshAfter)
@@ -1319,14 +1360,6 @@ public sealed class MainWindowViewModel : ObservableObject
     private static string FirstOutputLine(string first, string second)
     {
         return SplitOutput(first).Concat(SplitOutput(second)).FirstOrDefault() ?? "No output.";
-    }
-
-    private static string GetOriginBranchName(string upstream, string currentBranch)
-    {
-        const string originPrefix = "origin/";
-        return upstream.StartsWith(originPrefix, StringComparison.OrdinalIgnoreCase)
-            ? upstream[originPrefix.Length..]
-            : currentBranch;
     }
 
     private static IEnumerable<string> GetPathspecs(string path)

@@ -52,7 +52,7 @@
                 <Separator />
                 <MenuItem Header="Fetch" Command="{Binding FetchCommand}" />
                 <MenuItem Header="Pull" Command="{Binding PullCommand}" />
-                <MenuItem Header="Push" Command="{Binding PushCommand}" />
+                <MenuItem Header="Push" Click="OnPushClicked" />
                 <Separator />
                 <MenuItem Header="Add Selected" Command="{Binding AddSelectedCommand}" />
                 <MenuItem Header="Revert Selected" Command="{Binding RevertSelectedCommand}" />
@@ -169,7 +169,7 @@
                                                      PlaceholderText="commit, author, date, description"
                                                      Text="{Binding FilterText, Mode=TwoWay}" />
                                             <Button Grid.Column="2" Content="Refresh" Margin="8,0,0,0" Command="{Binding RefreshCommand}" />
-                                            <Button Grid.Column="3" Content="Push" Margin="8,0,0,0" Command="{Binding PushCommand}" />
+                                            <Button Grid.Column="3" Content="Push" Margin="8,0,0,0" Click="OnPushClicked" />
                                         </Grid>
                                     </Border>
 
@@ -188,7 +188,7 @@
                                             <ContextMenu>
                                                 <MenuItem Header="Copy Content" Click="OnCopyPendingContent" />
                                                 <Separator />
-                                                <MenuItem Header="Push to origin" Click="OnPushPendingToOrigin" />
+                                                <MenuItem Header="Push" Click="OnPushClicked" />
                                                 <Separator />
                                                 <MenuItem Header="Revert Commit" Click="OnRevertPendingCommit" />
                                                 <MenuItem Header="Restore Changes To Worktree" Click="OnRestorePendingCommit" />
