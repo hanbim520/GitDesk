@@ -887,16 +887,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        var preCleanArgs = new[] { "clean", "-ffdx" };
-        var preCleanResult = await _git.RunAsync(repositoryRoot, preCleanArgs);
-        AppendCommand(
-            "Delete local untracked files before checkout",
-            repositoryRoot,
-            preCleanArgs,
-            preCleanResult.StandardOutput,
-            preCleanResult.StandardError);
-
-        if (!preCleanResult.IsSuccess)
+        if (!await RunFullCleanWithRetryAsync(repositoryRoot, "Delete local untracked files before checkout"))
         {
             await RefreshAsync();
             StatusText = "Checkout failed";
@@ -924,14 +915,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 resetResult.StandardOutput,
                 resetResult.StandardError);
 
-            var cleanArgs = new[] { "clean", "-ffdx" };
-            var cleanResult = await _git.RunAsync(repositoryRoot, cleanArgs);
-            AppendCommand(
-                $"Delete files outside {commit.ShortRevision}",
-                repositoryRoot,
-                cleanArgs,
-                cleanResult.StandardOutput,
-                cleanResult.StandardError);
+            var cleanSucceeded = await RunFullCleanWithRetryAsync(repositoryRoot, $"Delete files outside {commit.ShortRevision}");
 
             var upstream = await _git.GetUpstreamBranchNameAsync(repositoryRoot);
             if (string.IsNullOrWhiteSpace(upstream))
@@ -941,7 +925,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 AppendCommand("Set branch upstream", repositoryRoot, setUpstreamArgs, setUpstreamResult.StandardOutput, setUpstreamResult.StandardError);
             }
 
-            checkoutSucceeded = resetResult.IsSuccess && cleanResult.IsSuccess;
+            checkoutSucceeded = resetResult.IsSuccess && cleanSucceeded;
         }
 
         await RefreshAsync();
@@ -1485,6 +1469,38 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
     }
 
+    private async Task<bool> RunFullCleanWithRetryAsync(string repositoryRoot, string title)
+    {
+        var exclusions = new List<string>();
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            var args = new List<string> { "clean", "-ffdx" };
+            foreach (var exclusion in exclusions)
+            {
+                args.Add("-e");
+                args.Add(exclusion);
+            }
+
+            var result = await _git.RunAsync(repositoryRoot, args);
+            AppendCommand(attempt == 0 ? title : $"{title} (retry)", repositoryRoot, args, result.StandardOutput, result.StandardError);
+            if (result.IsSuccess)
+            {
+                return true;
+            }
+
+            var invalidPath = GetInvalidMissingCleanPath(result, repositoryRoot);
+            if (string.IsNullOrWhiteSpace(invalidPath) || exclusions.Contains(invalidPath, StringComparer.Ordinal))
+            {
+                return false;
+            }
+
+            exclusions.Add(invalidPath);
+            AppendOutput($"Skip invalid clean path and retry: {invalidPath}");
+        }
+
+        return false;
+    }
+
     private async Task HandleAuthenticationFailureAsync(GitCommandResult result)
     {
         if (GitService.IsSshPublicKeyFailure(result))
@@ -1941,6 +1957,44 @@ public sealed class MainWindowViewModel : ObservableObject
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static string? GetInvalidMissingCleanPath(GitCommandResult result, string repositoryRoot)
+    {
+        var output = $"{result.StandardOutput}\n{result.StandardError}";
+        if (!output.Contains("Invalid path", StringComparison.OrdinalIgnoreCase) ||
+            !output.Contains("No such file or directory", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        const string marker = "Invalid path '";
+        foreach (var line in SplitOutput(output))
+        {
+            var markerIndex = line.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex < 0)
+            {
+                continue;
+            }
+
+            var pathStart = markerIndex + marker.Length;
+            var pathEnd = line.IndexOf('\'', pathStart);
+            if (pathEnd <= pathStart)
+            {
+                continue;
+            }
+
+            var path = line[pathStart..pathEnd].Replace('\\', '/');
+            var repositoryPath = Path.GetFullPath(repositoryRoot).Replace('\\', '/').TrimEnd('/');
+            if (path.StartsWith(repositoryPath + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                path = path[(repositoryPath.Length + 1)..];
+            }
+
+            return path.Trim('/');
+        }
+
+        return null;
     }
 
     private static bool PathExists(string path)
