@@ -1,0 +1,55 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitDesk.CLChangesDialog"
+        Title="CL Changes"
+        Width="920"
+        Height="620"
+        MinWidth="720"
+        MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Background="#F2F2F2">
+        <Border DockPanel.Dock="Top"
+                Background="#ECECEC"
+                BorderBrush="#C9C9C9"
+                BorderThickness="0,0,0,1"
+                Padding="8">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="3">
+                    <TextBlock Text="{Binding TitleText}"
+                               FontWeight="SemiBold"
+                               FontSize="14" />
+                    <TextBlock Text="{Binding DetailText}"
+                               Foreground="#555555"
+                               FontSize="12" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="Checkout This Commit"
+                        Padding="12,4"
+                        VerticalAlignment="Center"
+                        Command="{Binding CheckoutCommand}" />
+            </Grid>
+        </Border>
+
+        <DataGrid x:Name="ChangesGrid"
+                  ItemsSource="{Binding Changes}"
+                  SelectedItem="{Binding SelectedChange, Mode=TwoWay}"
+                  PointerPressed="OnChangesGridPointerPressed"
+                  AutoGenerateColumns="False"
+                  CanUserResizeColumns="True"
+                  IsReadOnly="True"
+                  GridLinesVisibility="All"
+                  HeadersVisibility="Column"
+                  RowHeight="28">
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Compare" Click="OnCompareClicked" />
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Status" Binding="{Binding Details}" Width="160" />
+                <DataGridTextColumn Header="Code" Binding="{Binding Status}" Width="90" />
+                <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

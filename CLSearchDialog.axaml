@@ -1,0 +1,33 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitDesk.CLSearchDialog"
+        Title="Search ByCommit"
+        Width="420"
+        Height="150"
+        MinWidth="360"
+        MinHeight="140"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Background="#F2F2F2" Margin="12">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Commit"
+                   Margin="0,0,0,6" />
+        <TextBox x:Name="CLTextBox"
+                 DockPanel.Dock="Top"
+                 PlaceholderText="Commit hash"
+                 KeyDown="OnCLTextBoxKeyDown" />
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8"
+                    Margin="0,12,0,0">
+            <Button Content="OK"
+                    Width="82"
+                    IsDefault="True"
+                    Click="OnOkClicked" />
+            <Button Content="Cancel"
+                    Width="82"
+                    IsCancel="True"
+                    Click="OnCancelClicked" />
+        </StackPanel>
+    </DockPanel>
+</Window>

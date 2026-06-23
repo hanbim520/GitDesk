@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="GitDesk.CommitDialog"
+        Title="Git Commit"
+        Width="860"
+        Height="620"
+        MinWidth="680"
+        MinHeight="460"
+        WindowStartupLocation="CenterOwner">
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="Button.dialog-action">
+            <Setter Property="MinWidth" Value="96" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="16" RowSpacing="12">
+        <StackPanel Grid.Row="0">
+            <TextBlock Classes="label" Text="Commit 内容" />
+            <TextBox Text="{Binding CommitMessage, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     Height="92"
+                     TextWrapping="Wrap"
+                     PlaceholderText="Input commit message" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+            <CheckBox Grid.Column="0"
+                      Content="Select all"
+                      IsChecked="{Binding AllSelected, Mode=TwoWay}"
+                      VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding SummaryText}"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0"
+                       Foreground="#555555" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding ErrorText}"
+                       VerticalAlignment="Center"
+                       Foreground="#B00020"
+                       IsVisible="{Binding HasError}" />
+        </Grid>
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Files}"
+                  AutoGenerateColumns="False"
+                  GridLinesVisibility="All"
+                  HeadersVisibility="Column"
+                  RowHeight="30">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="" Width="48">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Status" Binding="{Binding DisplayStatus}" Width="130" IsReadOnly="True" />
+                <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" IsReadOnly="True" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Classes="dialog-action" Content="Cancel" Click="OnCancelClicked" />
+            <Button Classes="dialog-action" Content="Commit" Click="OnCommitClicked" />
+        </StackPanel>
+    </Grid>
+</Window>

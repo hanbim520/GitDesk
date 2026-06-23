@@ -1,0 +1,372 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using GitDesk.Models;
+
+namespace GitDesk.Services;
+
+public sealed class GitService
+{
+    private static readonly string[] Utf8ConfigArguments =
+    {
+        "-c",
+        "core.quotepath=false",
+        "-c",
+        "i18n.commitEncoding=utf-8",
+        "-c",
+        "i18n.logOutputEncoding=utf-8",
+    };
+
+    public async Task<GitCommandResult> RunAsync(
+        string workingDirectory,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken = default)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+        };
+
+        startInfo.Environment["LANG"] = "C.UTF-8";
+        startInfo.Environment["LC_ALL"] = "C.UTF-8";
+        startInfo.Environment["LESSCHARSET"] = "utf-8";
+
+        foreach (var argument in Utf8ConfigArguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        return new GitCommandResult(process.ExitCode, await stdoutTask, await stderrTask);
+    }
+
+    public async Task<string?> FindRepositoryRootAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var workingDirectory = ToWorkingDirectory(path);
+        if (workingDirectory is null)
+        {
+            return null;
+        }
+
+        var result = await RunAsync(
+            workingDirectory,
+            new[] { "rev-parse", "--show-toplevel" },
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return null;
+        }
+
+        var root = result.StandardOutput.Trim();
+        return string.IsNullOrWhiteSpace(root) ? null : Path.GetFullPath(root);
+    }
+
+    public async Task<IReadOnlyList<GitChange>> GetStatusAsync(
+        string repositoryRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(
+            repositoryRoot,
+            new[] { "status", "--short", "--branch" },
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return Array.Empty<GitChange>();
+        }
+
+        return ParseStatus(result.StandardOutput);
+    }
+
+    public async Task<IReadOnlyList<GitHistoryEntry>> GetHistoryAsync(
+        string repositoryRoot,
+        string? path = null,
+        CancellationToken cancellationToken = default)
+    {
+        var args = new List<string>
+        {
+            "log",
+            "--max-count=120",
+            "--date=short",
+            "--pretty=format:%H%x09%an%x09%ad%x09%s",
+        };
+        AddPathspec(args, repositoryRoot, path);
+
+        var result = await RunAsync(repositoryRoot, args, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return Array.Empty<GitHistoryEntry>();
+        }
+
+        return result.StandardOutput
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t', 4))
+            .Where(parts => parts.Length == 4)
+            .Select(parts => new GitHistoryEntry(parts[0], parts[1], parts[2], parts[3]))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<GitHistoryEntry>> GetPendingCommitsAsync(
+        string repositoryRoot,
+        CancellationToken cancellationToken = default)
+    {
+        var upstreamResult = await RunAsync(
+            repositoryRoot,
+            new[] { "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}" },
+            cancellationToken);
+
+        var args = new List<string>
+        {
+            "log",
+            "--max-count=120",
+            "--date=short",
+            "--pretty=format:%H%x09%an%x09%ad%x09%s",
+        };
+
+        if (upstreamResult.IsSuccess && !string.IsNullOrWhiteSpace(upstreamResult.StandardOutput))
+        {
+            args.Add($"{upstreamResult.StandardOutput.Trim()}..HEAD");
+        }
+        else
+        {
+            args.Add("--branches");
+            args.Add("--not");
+            args.Add("--remotes");
+        }
+
+        var result = await RunAsync(repositoryRoot, args, cancellationToken);
+        if (!result.IsSuccess)
+        {
+            return Array.Empty<GitHistoryEntry>();
+        }
+
+        return result.StandardOutput
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t', 4))
+            .Where(parts => parts.Length == 4)
+            .Select(parts => new GitHistoryEntry(parts[0], parts[1], parts[2], parts[3]))
+            .ToArray();
+    }
+
+    public async Task<GitHistoryEntry?> GetCommitAsync(
+        string repositoryRoot,
+        string revision,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(revision))
+        {
+            return null;
+        }
+
+        var result = await RunAsync(
+            repositoryRoot,
+            new[]
+            {
+                "show",
+                "--quiet",
+                "--date=short",
+                "--pretty=format:%H%x09%an%x09%ad%x09%s",
+                revision.Trim(),
+            },
+            cancellationToken);
+
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.StandardOutput))
+        {
+            return null;
+        }
+
+        var parts = result.StandardOutput.Trim().Split('\t', 4);
+        return parts.Length == 4
+            ? new GitHistoryEntry(parts[0], parts[1], parts[2], parts[3])
+            : null;
+    }
+
+    public async Task<IReadOnlyList<GitChange>> GetCommitChangesAsync(
+        string repositoryRoot,
+        string revision,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(
+            repositoryRoot,
+            new[] { "diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-M", revision },
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return Array.Empty<GitChange>();
+        }
+
+        return ParseNameStatus(result.StandardOutput);
+    }
+
+    public static string? ToWorkingDirectory(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        if (Directory.Exists(path))
+        {
+            return Path.GetFullPath(path);
+        }
+
+        if (File.Exists(path))
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(path));
+        }
+
+        return null;
+    }
+
+    public static void AddPathspec(ICollection<string> arguments, string repositoryRoot, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        var relativePath = Path.GetRelativePath(repositoryRoot, fullPath);
+
+        if (string.IsNullOrWhiteSpace(relativePath) || relativePath == ".")
+        {
+            return;
+        }
+
+        arguments.Add("--");
+        arguments.Add(relativePath.Replace(Path.DirectorySeparatorChar, '/'));
+    }
+
+    private static IReadOnlyList<GitChange> ParseStatus(string output)
+    {
+        var changes = new List<GitChange>();
+        foreach (var line in output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (line.StartsWith("## ", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (line.Length < 4)
+            {
+                continue;
+            }
+
+            var rawStatus = line[..2];
+            var status = rawStatus.Trim();
+            var path = line[3..].Trim();
+            var details = GetStatusDetails(rawStatus);
+
+            changes.Add(new GitChange(status, path, details));
+        }
+
+        return changes;
+    }
+
+    private static IReadOnlyList<GitChange> ParseNameStatus(string output)
+    {
+        var changes = new List<GitChange>();
+        foreach (var line in output.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split('\t');
+            if (parts.Length < 2)
+            {
+                continue;
+            }
+
+            var status = parts[0].Trim();
+            var path = status.StartsWith("R", StringComparison.Ordinal) && parts.Length >= 3
+                ? $"{parts[1]} -> {parts[2]}"
+                : parts[1];
+
+            changes.Add(new GitChange(status, path, GetNameStatusDetails(status)));
+        }
+
+        return changes;
+    }
+
+    private static string GetNameStatusDetails(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "Changed";
+        }
+
+        return status[0] switch
+        {
+            'A' => "Added",
+            'C' => "Copied",
+            'D' => "Deleted",
+            'M' => "Modified",
+            'R' => "Renamed",
+            'T' => "Type changed",
+            'U' => "Unmerged",
+            'X' => "Unknown",
+            _ => "Changed",
+        };
+    }
+
+    private static string GetStatusDetails(string rawStatus)
+    {
+        if (rawStatus == "??")
+        {
+            return "Untracked";
+        }
+
+        if (rawStatus == "!!")
+        {
+            return "Ignored";
+        }
+
+        var index = rawStatus[0];
+        var worktree = rawStatus[1];
+
+        return (index, worktree) switch
+        {
+            ('M', 'M') => "Modified (staged and unstaged)",
+            ('A', 'M') => "Added (modified)",
+            ('M', _) => "Modified (staged)",
+            ('A', _) => "Added",
+            ('D', _) => "Deleted (staged)",
+            ('R', _) => "Renamed",
+            ('C', _) => "Copied",
+            (_, 'M') => "Modified",
+            (_, 'D') => "Deleted",
+            _ => rawStatus.Trim() switch
+            {
+                "M" => "Modified",
+                "A" => "Added",
+                "D" => "Deleted",
+                "R" => "Renamed",
+                "C" => "Copied",
+                _ => "Changed",
+            },
+        };
+    }
+}

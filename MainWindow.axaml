@@ -1,0 +1,342 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:GitDesk.Models"
+        mc:Ignorable="d" d:DesignWidth="1440" d:DesignHeight="860"
+        x:Class="GitDesk.MainWindow"
+        Title="GitDesk"
+        Width="1440"
+        Height="860"
+        MinWidth="1080"
+        MinHeight="680">
+    <Window.Styles>
+        <Style Selector="Button.toolbar">
+            <Setter Property="MinWidth" Value="74" />
+            <Setter Property="Height" Value="50" />
+            <Setter Property="Margin" Value="0,0,1,0" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.panel">
+            <Setter Property="BorderBrush" Value="#C9C9C9" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#FAFAFA" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Background="#F2F2F2">
+        <Menu DockPanel.Dock="Top" FontSize="13">
+            <MenuItem Header="_File">
+                <MenuItem Header="Open Workspace..." Click="OnBrowseWorkspace" />
+                <Separator />
+                <MenuItem Header="Exit" Click="OnExit" />
+            </MenuItem>
+            <MenuItem Header="_Edit" />
+            <MenuItem Header="_Search">
+                <MenuItem Header="ByCommit" Click="OnSearchByCommit" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="Refresh" Command="{Binding RefreshCommand}" />
+                <MenuItem Header="{Binding OutputVisibilityMenuText}" Command="{Binding ToggleOutputVisibilityCommand}" />
+                <MenuItem Header="Clear Output" Click="OnClearOutput" />
+            </MenuItem>
+            <MenuItem Header="_Actions">
+                <MenuItem Header="Init Repository" Command="{Binding InitRepositoryCommand}" />
+                <Separator />
+                <MenuItem Header="Fetch" Command="{Binding FetchCommand}" />
+                <MenuItem Header="Pull" Command="{Binding PullCommand}" />
+                <MenuItem Header="Push" Command="{Binding PushCommand}" />
+                <Separator />
+                <MenuItem Header="Add Selected" Command="{Binding AddSelectedCommand}" />
+                <MenuItem Header="Revert Selected" Command="{Binding RevertSelectedCommand}" />
+                <MenuItem Header="Diff Selected" Command="{Binding DiffSelectedCommand}" />
+                <MenuItem Header="Log Selected" Command="{Binding LogSelectedCommand}" />
+            </MenuItem>
+            <MenuItem Header="_Tools" />
+            <MenuItem Header="_Window" />
+            <MenuItem Header="_Help" />
+        </Menu>
+
+        <Border DockPanel.Dock="Top" Background="#F8F8F8" Padding="4">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" Text="Workspace" VerticalAlignment="Center" Margin="4,0,8,0" />
+                <ComboBox x:Name="WorkspaceSelector"
+                          Grid.Column="1"
+                          ItemsSource="{Binding WorkspaceHistory}"
+                          SelectedItem="{Binding SelectedWorkspaceHistory, Mode=TwoWay}"
+                          SelectionChanged="OnWorkspaceSelectionChanged" />
+                <Button Grid.Column="2" Content="Browse" Margin="4,0,0,0" Click="OnBrowseWorkspace" />
+            </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom"
+                BorderBrush="#BDBDBD"
+                BorderThickness="0,1,0,0"
+                Background="#EDEDED"
+                Padding="8,4">
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusText}" />
+                <TextBlock Grid.Column="1" Text="{Binding CurrentBranch}" Margin="12,0" />
+                <TextBlock Grid.Column="2" Text="{Binding RepositoryRoot}" Foreground="#555555" />
+            </Grid>
+        </Border>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="{Binding OutputSplitterRowHeight}" />
+                <RowDefinition Height="{Binding OutputDockRowHeight}" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" ColumnDefinitions="390,5,*">
+                <Border Grid.Column="0" Classes="panel">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                BorderBrush="#D6D6D6"
+                                BorderThickness="0,0,0,1"
+                                Background="#ECECEC"
+                                Height="34">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Classes="section-title" Text="Workspace" />
+                                <Button Grid.Column="1"
+                                        Content="Refresh"
+                                        Margin="0,3,6,3"
+                                        Padding="8,0"
+                                        Command="{Binding RefreshTreeCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <TreeView x:Name="WorkspaceTree"
+                                  ItemsSource="{Binding Roots}"
+                                  SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                                  PointerPressed="OnWorkspaceTreePointerPressed">
+                            <TreeView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open Folder" Command="{Binding OpenSelectedFolderCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Git Status" Command="{Binding StatusSelectedCommand}" />
+                                    <MenuItem Header="Git Add" Command="{Binding AddSelectedCommand}" />
+                                    <MenuItem Header="Git Commit" Click="OnCommitClicked" />
+                                    <MenuItem Header="Git Revert" Command="{Binding RevertSelectedCommand}" />
+                                    <MenuItem Header="Git Diff" Command="{Binding DiffSelectedCommand}" />
+                                    <MenuItem Header="Git Log" Command="{Binding LogSelectedCommand}" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                            <TreeView.Styles>
+                                <Style Selector="TreeViewItem">
+                                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                </Style>
+                            </TreeView.Styles>
+                            <TreeView.ItemTemplate>
+                                <TreeDataTemplate DataType="{x:Type models:FileSystemNode}" ItemsSource="{Binding Children}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Width="16" Text="{Binding Icon}" Foreground="#2D7DAF" />
+                                        <TextBlock Text="{Binding Name}" />
+                                    </StackPanel>
+                                </TreeDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="#D0D0D0" />
+
+                <Border Grid.Column="2" Classes="panel">
+                    <Grid RowDefinitions="*,5,240">
+                        <TabControl x:Name="MainCommitTabControl"
+                                    Grid.Row="0"
+                                    SelectionChanged="OnMainCommitTabSelectionChanged">
+                            <TabItem Header="ChangeLists">
+                                <Grid RowDefinitions="Auto,*">
+                                    <Border Grid.Row="0"
+                                            BorderBrush="#DFDFDF"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="8"
+                                            Background="#F8F8F8">
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                                            <TextBlock Text="Filter" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                            <TextBox Grid.Column="1"
+                                                     PlaceholderText="commit, author, date, description"
+                                                     Text="{Binding FilterText, Mode=TwoWay}" />
+                                            <Button Grid.Column="2" Content="Refresh" Margin="8,0,0,0" Command="{Binding RefreshCommand}" />
+                                            <Button Grid.Column="3" Content="Push" Margin="8,0,0,0" Command="{Binding PushCommand}" />
+                                        </Grid>
+                                    </Border>
+
+                                    <DataGrid x:Name="PendingGrid"
+                                              Grid.Row="1"
+                                              ItemsSource="{Binding PendingCommits}"
+                                              SelectedItem="{Binding SelectedPendingCommit, Mode=TwoWay}"
+                                              PointerPressed="OnPendingGridPointerPressed"
+                                              AutoGenerateColumns="False"
+                                              CanUserResizeColumns="True"
+                                              IsReadOnly="True"
+                                              GridLinesVisibility="All"
+                                              HeadersVisibility="Column"
+                                              RowHeight="28">
+                                        <DataGrid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Copy Content" Click="OnCopyPendingContent" />
+                                                <Separator />
+                                                <MenuItem Header="Push to origin" Click="OnPushPendingToOrigin" />
+                                                <Separator />
+                                                <MenuItem Header="Revert Commit" Click="OnRevertPendingCommit" />
+                                                <MenuItem Header="Restore Changes To Worktree" Click="OnRestorePendingCommit" />
+                                                <Separator />
+                                                <MenuItem Header="Delete HEAD Commit, Keep Changes" Click="OnDeletePendingCommitKeepChanges" />
+                                                <MenuItem Header="Delete HEAD Commit, Discard Changes" Click="OnDeletePendingCommitDiscardChanges" />
+                                            </ContextMenu>
+                                        </DataGrid.ContextMenu>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Commit" Binding="{Binding ShortRevision}" Width="130" />
+                                            <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="180" />
+                                            <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="110" />
+                                            <DataGridTextColumn Header="Description" Binding="{Binding Subject}" Width="*" />
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem Header="History">
+                                <DataGrid x:Name="HistoryGrid"
+                                          ItemsSource="{Binding History}"
+                                          SelectedItem="{Binding SelectedHistoryEntry, Mode=TwoWay}"
+                                          PointerPressed="OnHistoryGridPointerPressed"
+                                          AutoGenerateColumns="False"
+                                          CanUserResizeColumns="True"
+                                          IsReadOnly="True"
+                                          GridLinesVisibility="All"
+                                          HeadersVisibility="Column"
+                                          RowHeight="28">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Copy Content" Click="OnCopyHistoryContent" />
+                                            <Separator />
+                                            <MenuItem Header="Checkout Selected Commit" Click="OnCheckoutHistoryCommit" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Commit" Binding="{Binding ShortRevision}" Width="130" />
+                                        <DataGridTextColumn Header="State" Binding="{Binding PublishState}" Width="80" />
+                                        <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="180" />
+                                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="110" />
+                                        <DataGridTextColumn Header="Description" Binding="{Binding Subject}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+                        </TabControl>
+
+                        <GridSplitter Grid.Row="1"
+                                      ResizeDirection="Rows"
+                                      Background="#D0D0D0" />
+
+                        <Border Grid.Row="2"
+                                BorderBrush="#BDBDBD"
+                                BorderThickness="0,1,0,0"
+                                Background="#FAFAFA">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top"
+                                        Background="#ECECEC"
+                                        BorderBrush="#D6D6D6"
+                                        BorderThickness="0,0,0,1"
+                                        Height="30">
+                                    <TextBlock Classes="section-title" Text="{Binding SelectedPendingCommitChangesTitle}" />
+                                </Border>
+                                <DataGrid x:Name="CLChangesGrid"
+                                          ItemsSource="{Binding SelectedPendingCommitChanges}"
+                                          SelectedItem="{Binding SelectedCommitChange, Mode=TwoWay}"
+                                          PointerPressed="OnCLChangesGridPointerPressed"
+                                          AutoGenerateColumns="False"
+                                          CanUserResizeColumns="True"
+                                          IsReadOnly="True"
+                                          GridLinesVisibility="All"
+                                          HeadersVisibility="Column"
+                                          RowHeight="28">
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Compare" Click="OnCompareCLChange" />
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Details}" Width="140" />
+                                        <DataGridTextColumn Header="Code" Binding="{Binding Status}" Width="90" />
+                                        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Row="1"
+                          ResizeDirection="Rows"
+                          Background="#D0D0D0"
+                          IsVisible="{Binding IsOutputVisible}" />
+
+            <Border Grid.Row="2"
+                    Classes="panel"
+                    BorderThickness="1,1,1,0"
+                    IsVisible="{Binding IsOutputVisible}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top"
+                            Background="#ECECEC"
+                            BorderBrush="#D6D6D6"
+                            BorderThickness="0,0,0,1"
+                            Height="30">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Classes="section-title" Text="Output" />
+                            <Button Grid.Column="1"
+                                    Content="{Binding OutputVisibilityIcon}"
+                                    Margin="0,3,6,3"
+                                    Width="30"
+                                    Padding="10,0"
+                                    ToolTip.Tip="{Binding OutputVisibilityButtonText}"
+                                    Command="{Binding ToggleOutputVisibilityCommand}" />
+                            <Button Grid.Column="2"
+                                    Content="Clear"
+                                    Margin="0,3,6,3"
+                                    Padding="10,0"
+                                    IsVisible="{Binding IsOutputVisible}"
+                                    Click="OnClearOutput" />
+                        </Grid>
+                    </Border>
+                    <ListBox ItemsSource="{Binding OutputLines}"
+                             FontFamily="Consolas"
+                             FontSize="12"
+                             Background="#FFFFFF" />
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Row="3"
+                    BorderBrush="#BDBDBD"
+                    BorderThickness="1,1,1,0"
+                    Background="#ECECEC"
+                    Height="28"
+                    IsVisible="{Binding IsOutputHidden}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="Output hidden"
+                               Margin="8,0"
+                               VerticalAlignment="Center"
+                               Foreground="#555555" />
+                    <Button Grid.Column="1"
+                            Content="{Binding OutputVisibilityIcon}"
+                            Margin="0,3,6,3"
+                            Width="30"
+                            Padding="10,0"
+                            ToolTip.Tip="{Binding OutputVisibilityButtonText}"
+                            Command="{Binding ToggleOutputVisibilityCommand}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>
