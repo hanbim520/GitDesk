@@ -464,11 +464,14 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         var stagedChanges = (await _git.GetStatusAsync(repositoryRoot))
-            .Where(IsStagedChangeListChange)
+            .Select(change => new { Change = change, State = GetStagedChangeListState(change) })
+            .Where(item => item.State is not null)
+            .GroupBy(item => item.State!, item => item.Change)
             .ToArray();
-        if (stagedChanges.Length > 0)
+
+        foreach (var group in stagedChanges)
         {
-            _allPendingChangeLists.Add(GitHistoryEntry.FromChanges(stagedChanges));
+            _allPendingChangeLists.Add(GitHistoryEntry.FromChanges(group.Key, group.ToArray()));
         }
 
         ApplyPendingFilter();
@@ -1085,17 +1088,23 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(PendingCountText));
     }
 
-    private static bool IsStagedChangeListChange(GitChange change)
+    private static string? GetStagedChangeListState(GitChange change)
     {
         if (string.IsNullOrWhiteSpace(change.Status))
         {
-            return false;
+            return null;
         }
 
         return change.Status[0] switch
         {
-            'A' or 'M' or 'D' or 'R' or 'C' or 'T' or 'U' => true,
-            _ => false,
+            'A' => "Staged Added",
+            'M' => "Staged Modified",
+            'D' => "Staged Deleted",
+            'R' => "Staged Renamed",
+            'C' => "Staged Copied",
+            'T' => "Staged Type changed",
+            'U' => "Staged Unmerged",
+            _ => null,
         };
     }
 

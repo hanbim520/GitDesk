@@ -50,15 +50,15 @@ public sealed class GitHistoryEntry
         return new GitHistoryEntry(Revision, Author, Date, Subject, publishState, ChangeListState, Changes);
     }
 
-    public static GitHistoryEntry FromChanges(IReadOnlyList<GitChange> changes)
+    public static GitHistoryEntry FromChanges(string state, IReadOnlyList<GitChange> changes)
     {
         return new GitHistoryEntry(
             string.Empty,
             string.Empty,
             string.Empty,
-            $"Staged Changes ({changes.Count})",
+            $"{state} ({changes.Count})",
             "Local",
-            "Staged",
+            state,
             changes);
     }
 }
