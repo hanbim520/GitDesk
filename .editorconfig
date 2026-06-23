@@ -1,6 +1,7 @@
 root = true
 
 [*]
+# EditorConfig charset=utf-8 means UTF-8 without BOM.
 charset = utf-8
 end_of_line = crlf
 insert_final_newline = true

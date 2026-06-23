@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+if command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -ExecutionPolicy Bypass -File tools/verify-utf8-nobom.ps1
+elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-utf8-nobom.ps1
+else
+    echo "PowerShell is required to verify UTF-8 no BOM files." >&2
+    exit 1
+fi

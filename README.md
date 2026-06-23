@@ -63,6 +63,15 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 - Fetch, pull, and push run through Git Credential Manager and open Settings when authentication fails.
 - GitHub tokens only apply to HTTPS remotes. SSH remotes such as `git@github.com:owner/repo.git` should be converted to HTTPS before using token authentication.
 - The vendored LevelDB.NET source is kept under `third_party/leveldb.net` for source visibility.
+- Repository text files are expected to be UTF-8 without BOM. Run `tools/verify-utf8-nobom.ps1` to check this locally; the included Git hook uses the same check.
+
+## Git Hooks
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+This enables the repository pre-commit hook that rejects tracked files containing a UTF-8 BOM.
 
 ## Contributing
 
