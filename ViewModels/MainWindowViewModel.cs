@@ -871,6 +871,12 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         StatusText = $"Checkout {commit.ShortRevision}";
+        var cleanPaths = await GetCheckoutCleanPathsAsync(repositoryRoot, revision);
+        if (cleanPaths.Count == 0)
+        {
+            AppendOutput($"No changed paths found between HEAD and {commit.ShortRevision}; scoped clean skipped.");
+        }
+
         var preResetArgs = new[] { "reset", "--hard" };
         var preResetResult = await _git.RunAsync(repositoryRoot, preResetArgs);
         AppendCommand(
@@ -887,7 +893,7 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (!await RunFullCleanWithRetryAsync(repositoryRoot, "Delete local untracked files before checkout"))
+        if (!await RunCleanWithRetryAsync(repositoryRoot, "Delete local untracked files before checkout", cleanPaths))
         {
             await RefreshAsync();
             StatusText = "Checkout failed";
@@ -915,7 +921,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 resetResult.StandardOutput,
                 resetResult.StandardError);
 
-            var cleanSucceeded = await RunFullCleanWithRetryAsync(repositoryRoot, $"Delete files outside {commit.ShortRevision}");
+            var cleanSucceeded = await RunCleanWithRetryAsync(repositoryRoot, $"Delete files outside {commit.ShortRevision}", cleanPaths);
 
             var upstream = await _git.GetUpstreamBranchNameAsync(repositoryRoot);
             if (string.IsNullOrWhiteSpace(upstream))
@@ -1469,9 +1475,48 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
     }
 
-    private async Task<bool> RunFullCleanWithRetryAsync(string repositoryRoot, string title)
+    private async Task<IReadOnlyList<string>> GetCheckoutCleanPathsAsync(string repositoryRoot, string revision)
+    {
+        var args = new[] { "diff", "--name-only", "-z", "HEAD", revision };
+        var result = await _git.RunAsync(repositoryRoot, args);
+        var changedPaths = result.IsSuccess
+            ? ParseNullSeparatedPaths(result.StandardOutput)
+            : Array.Empty<string>();
+
+        var cleanPaths = BuildCleanupDirectories(changedPaths);
+        AppendCommand(
+            "Resolve checkout clean paths",
+            repositoryRoot,
+            args,
+            result.IsSuccess ? $"{cleanPaths.Count} changed path scope(s)." : result.StandardOutput,
+            result.StandardError);
+
+        return cleanPaths;
+    }
+
+    private async Task<bool> RunCleanWithRetryAsync(string repositoryRoot, string title, IReadOnlyList<string> pathspecs)
+    {
+        if (pathspecs.Count == 0)
+        {
+            return true;
+        }
+
+        var succeeded = true;
+        foreach (var chunk in ChunkPathspecs(pathspecs))
+        {
+            if (!await RunCleanChunkWithRetryAsync(repositoryRoot, title, chunk))
+            {
+                succeeded = false;
+            }
+        }
+
+        return succeeded;
+    }
+
+    private async Task<bool> RunCleanChunkWithRetryAsync(string repositoryRoot, string title, IReadOnlyList<string> pathspecs)
     {
         var exclusions = new List<string>();
+        var activePathspecs = pathspecs.ToList();
         for (var attempt = 0; attempt < 8; attempt++)
         {
             var args = new List<string> { "clean", "-ffdx" };
@@ -1480,6 +1525,9 @@ public sealed class MainWindowViewModel : ObservableObject
                 args.Add("-e");
                 args.Add(exclusion);
             }
+
+            args.Add("--");
+            args.AddRange(activePathspecs);
 
             var result = await _git.RunAsync(repositoryRoot, args);
             AppendCommand(attempt == 0 ? title : $"{title} (retry)", repositoryRoot, args, result.StandardOutput, result.StandardError);
@@ -1492,6 +1540,22 @@ public sealed class MainWindowViewModel : ObservableObject
             if (string.IsNullOrWhiteSpace(invalidPath) || exclusions.Contains(invalidPath, StringComparer.Ordinal))
             {
                 return false;
+            }
+
+            var removed = activePathspecs.RemoveAll(path =>
+                string.Equals(path, invalidPath, StringComparison.Ordinal) ||
+                path.StartsWith(invalidPath + "/", StringComparison.Ordinal) ||
+                invalidPath.StartsWith(path + "/", StringComparison.Ordinal));
+
+            if (removed > 0)
+            {
+                AppendOutput($"Skip invalid clean path and retry: {invalidPath}");
+                if (activePathspecs.Count == 0)
+                {
+                    return true;
+                }
+
+                continue;
             }
 
             exclusions.Add(invalidPath);
@@ -1912,6 +1976,61 @@ public sealed class MainWindowViewModel : ObservableObject
         var output = $"{result.StandardOutput}\n{result.StandardError}";
         return output.Contains("pathspec", StringComparison.OrdinalIgnoreCase) &&
                output.Contains("did not match any file", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string> ParseNullSeparatedPaths(string output)
+    {
+        return output
+            .Split('\0', StringSplitOptions.RemoveEmptyEntries)
+            .Select(path => path.Trim().Replace('\\', '/').Trim('/'))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> BuildCleanupDirectories(IReadOnlyList<string> changedPaths)
+    {
+        var scopes = changedPaths
+            .Select(GetCleanupScope)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(path => path.Count(ch => ch == '/'))
+            .ThenBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        var compacted = new List<string>();
+        foreach (var scope in scopes)
+        {
+            if (compacted.Any(parent => scope.StartsWith(parent + "/", StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            compacted.Add(scope);
+        }
+
+        return compacted;
+    }
+
+    private static string GetCleanupScope(string path)
+    {
+        var normalized = path.Trim().Replace('\\', '/').Trim('/');
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        var slashIndex = normalized.LastIndexOf('/');
+        return slashIndex <= 0 ? normalized : normalized[..slashIndex];
+    }
+
+    private static IEnumerable<IReadOnlyList<string>> ChunkPathspecs(IReadOnlyList<string> pathspecs)
+    {
+        const int chunkSize = 80;
+        for (var index = 0; index < pathspecs.Count; index += chunkSize)
+        {
+            yield return pathspecs.Skip(index).Take(chunkSize).ToArray();
+        }
     }
 
     private static IReadOnlyList<string> GetUntrackedOverwritePaths(GitCommandResult result)
