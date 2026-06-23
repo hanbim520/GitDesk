@@ -678,6 +678,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(_selectedCommitChangesRevision))
         {
+            if (SelectedPendingCommit is { IsChangeEntry: true })
+            {
+                return await GetStagedChangeDiffAsync(SelectedCommitChange);
+            }
+
             AppendOutput("No commit selected for compare.");
             return null;
         }
@@ -825,6 +830,50 @@ public sealed class MainWindowViewModel : ObservableObject
         var (leftPath, rightPath) = GetComparePaths(change.Path);
         return new CommitChangeDiff(
             revision,
+            change.Path,
+            leftPath,
+            rightPath,
+            change.Status,
+            change.Details,
+            diffText);
+    }
+
+    private async Task<CommitChangeDiff?> GetStagedChangeDiffAsync(GitChange change)
+    {
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return null;
+        }
+
+        var args = new List<string>
+        {
+            "diff",
+            "--cached",
+            "--find-renames",
+            "--patch",
+            "--unified=999999",
+            "--",
+        };
+        args.AddRange(GetPathspecs(change.Path));
+
+        StatusText = "Compare staged change";
+        var result = await _git.RunAsync(repositoryRoot, args);
+        var diffText = string.IsNullOrWhiteSpace(result.StandardError)
+            ? result.StandardOutput
+            : $"{result.StandardOutput}{Environment.NewLine}{result.StandardError}";
+
+        if (string.IsNullOrWhiteSpace(diffText))
+        {
+            diffText = result.IsSuccess
+                ? "No staged diff output for this file."
+                : "Compare failed without output.";
+        }
+
+        StatusText = result.IsSuccess ? "Ready" : "Compare failed";
+        var (leftPath, rightPath) = GetComparePaths(change.Path);
+        return new CommitChangeDiff(
+            "INDEX",
             change.Path,
             leftPath,
             rightPath,
