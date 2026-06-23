@@ -463,15 +463,12 @@ public sealed class MainWindowViewModel : ObservableObject
             _allPendingChangeLists.Add(commit);
         }
 
-        foreach (var change in await _git.GetStatusAsync(repositoryRoot))
+        var stagedChanges = (await _git.GetStatusAsync(repositoryRoot))
+            .Where(IsStagedChangeListChange)
+            .ToArray();
+        if (stagedChanges.Length > 0)
         {
-            var state = GetChangeListState(change);
-            if (state is null)
-            {
-                continue;
-            }
-
-            _allPendingChangeLists.Add(GitHistoryEntry.FromChange(change, state));
+            _allPendingChangeLists.Add(GitHistoryEntry.FromChanges(stagedChanges));
         }
 
         ApplyPendingFilter();
@@ -525,10 +522,14 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (commit.Change is { } selectedChange)
+        if (commit.IsChangeEntry)
         {
-            SelectedPendingCommitChanges.Add(selectedChange);
-            SelectedPendingCommitChangesTitle = $"Selected CL Changes - {commit.ChangeListState} ({selectedChange.Path})";
+            foreach (var change in commit.Changes)
+            {
+                SelectedPendingCommitChanges.Add(change);
+            }
+
+            SelectedPendingCommitChangesTitle = $"Selected CL Changes - {commit.Subject}";
             return;
         }
 
@@ -1084,24 +1085,17 @@ public sealed class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(PendingCountText));
     }
 
-    private static string? GetChangeListState(GitChange change)
+    private static bool IsStagedChangeListChange(GitChange change)
     {
         if (string.IsNullOrWhiteSpace(change.Status))
         {
-            return null;
+            return false;
         }
 
         return change.Status[0] switch
         {
-            'A' => "Added",
-            'M' => "Modified",
-            'D' => "Deleted",
-            'R' => "Renamed",
-            'C' => "Copied",
-            'T' => "Type changed",
-            'U' => "Unmerged",
-            '?' => "Untracked",
-            _ => change.Details,
+            'A' or 'M' or 'D' or 'R' or 'C' or 'T' or 'U' => true,
+            _ => false,
         };
     }
 

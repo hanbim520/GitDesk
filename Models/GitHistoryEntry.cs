@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace GitDesk.Models;
 
 public sealed class GitHistoryEntry
@@ -9,7 +12,7 @@ public sealed class GitHistoryEntry
         string subject,
         string publishState = "Remote",
         string changeListState = "Commit",
-        GitChange? change = null)
+        IReadOnlyList<GitChange>? changes = null)
     {
         Revision = revision;
         Author = author;
@@ -17,7 +20,7 @@ public sealed class GitHistoryEntry
         Subject = subject;
         PublishState = publishState;
         ChangeListState = changeListState;
-        Change = change;
+        Changes = changes ?? Array.Empty<GitChange>();
     }
 
     public string Revision { get; }
@@ -36,26 +39,26 @@ public sealed class GitHistoryEntry
 
     public string ChangeListState { get; }
 
-    public GitChange? Change { get; }
+    public IReadOnlyList<GitChange> Changes { get; }
 
-    public bool IsCommitEntry => Change is null;
+    public bool IsCommitEntry => Changes.Count == 0;
 
-    public bool IsChangeEntry => Change is not null;
+    public bool IsChangeEntry => Changes.Count > 0;
 
     public GitHistoryEntry WithPublishState(string publishState)
     {
-        return new GitHistoryEntry(Revision, Author, Date, Subject, publishState, ChangeListState, Change);
+        return new GitHistoryEntry(Revision, Author, Date, Subject, publishState, ChangeListState, Changes);
     }
 
-    public static GitHistoryEntry FromChange(GitChange change, string changeListState)
+    public static GitHistoryEntry FromChanges(IReadOnlyList<GitChange> changes)
     {
         return new GitHistoryEntry(
             string.Empty,
             string.Empty,
             string.Empty,
-            change.Path,
+            $"Staged Changes ({changes.Count})",
             "Local",
-            changeListState,
-            change);
+            "Staged",
+            changes);
     }
 }
