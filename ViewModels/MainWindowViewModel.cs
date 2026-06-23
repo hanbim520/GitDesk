@@ -51,6 +51,8 @@ public sealed class MainWindowViewModel : ObservableObject
         DeleteHeadPendingCommitDiscardChangesCommand = new AsyncRelayCommand(_ => DeleteSelectedHeadCommitAsync(keepChanges: false));
         AddSelectedCommand = new AsyncRelayCommand(_ => RunPathCommandAsync("Add", new[] { "add" }, true));
         RevertSelectedCommand = new AsyncRelayCommand(_ => RunPathCommandAsync("Revert", new[] { "restore", "--staged", "--worktree" }, true));
+        DeleteSelectedKeepLocalCommand = new AsyncRelayCommand(_ => DeleteSelectedPathAsync(keepLocal: true));
+        DeleteSelectedDeleteLocalCommand = new AsyncRelayCommand(_ => DeleteSelectedPathAsync(keepLocal: false));
         DiffSelectedCommand = new AsyncRelayCommand(_ => ShowDiffAsync());
         LogSelectedCommand = new AsyncRelayCommand(_ => LoadHistoryForSelectedAsync());
         CheckoutHistoryCommitCommand = new AsyncRelayCommand(_ => CheckoutSelectedHistoryCommitAsync());
@@ -111,6 +113,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public AsyncRelayCommand AddSelectedCommand { get; }
 
     public AsyncRelayCommand RevertSelectedCommand { get; }
+
+    public AsyncRelayCommand DeleteSelectedKeepLocalCommand { get; }
+
+    public AsyncRelayCommand DeleteSelectedDeleteLocalCommand { get; }
 
     public AsyncRelayCommand DiffSelectedCommand { get; }
 
@@ -201,6 +207,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedPendingCommit, value))
             {
+                NotifySelectedPendingCommitActionStateChanged();
                 _ = LoadSelectedCommitChangesAsync(value);
             }
         }
@@ -225,6 +232,14 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public string PendingCountText => $"{PendingCommits.Count} ChangeLists";
+
+    public bool CanOperateSelectedPendingCommit => SelectedPendingCommit is { IsCommitEntry: true };
+
+    public bool CanCancelSelectedStagedAdd => IsSelectedChangeListState("Staged Added");
+
+    public bool CanCancelSelectedStagedDelete => IsSelectedChangeListState("Staged Deleted");
+
+    public bool CanRevertSelectedStagedModified => IsSelectedChangeListState("Staged Modified");
 
     public string SelectedPendingCommitChangesTitle
     {
@@ -751,6 +766,30 @@ public sealed class MainWindowViewModel : ObservableObject
         await RunSelectedPendingCommitCommandAsync(title, args, true);
     }
 
+    public async Task CancelSelectedStagedAddAsync()
+    {
+        await RunSelectedChangeListCommandAsync(
+            "Cancel Add",
+            "Staged Added",
+            new[] { "restore", "--staged" });
+    }
+
+    public async Task CancelSelectedStagedDeleteAsync()
+    {
+        await RunSelectedChangeListCommandAsync(
+            "Cancel Delete",
+            "Staged Deleted",
+            new[] { "restore", "--staged", "--worktree" });
+    }
+
+    public async Task RevertSelectedStagedModifiedAsync()
+    {
+        await RunSelectedChangeListCommandAsync(
+            "Revert Modified",
+            "Staged Modified",
+            new[] { "restore", "--staged", "--worktree" });
+    }
+
     public async Task CheckoutSelectedHistoryCommitAsync()
     {
         if (SelectedHistoryEntry is null)
@@ -1081,6 +1120,49 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
     }
 
+    private async Task RunSelectedChangeListCommandAsync(
+        string title,
+        string expectedState,
+        IReadOnlyList<string> baseArguments)
+    {
+        if (SelectedPendingCommit is not { IsChangeEntry: true } changeList ||
+            !string.Equals(changeList.ChangeListState, expectedState, StringComparison.Ordinal))
+        {
+            AppendOutput($"{title} is only available for {expectedState} ChangeLists.");
+            return;
+        }
+
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return;
+        }
+
+        var pathspecs = changeList.Changes
+            .SelectMany(change => GetPathspecs(change.Path))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path.Replace('\\', '/'))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (pathspecs.Length == 0)
+        {
+            AppendOutput($"{title} has no paths to operate on.");
+            return;
+        }
+
+        var args = baseArguments.ToList();
+        args.Add("--");
+        args.AddRange(pathspecs);
+
+        StatusText = title;
+        var result = await _git.RunAsync(repositoryRoot, args);
+        AppendCommand(title, repositoryRoot, args, result.StandardOutput, result.StandardError);
+
+        await RefreshAsync();
+        StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
+    }
+
     private async Task RunRepositoryCommandAsync(string title, IReadOnlyList<string> arguments, bool refreshAfter)
     {
         var repositoryRoot = await ResolveRepositoryRootAsync();
@@ -1145,6 +1227,54 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
+    }
+
+    private async Task DeleteSelectedPathAsync(bool keepLocal)
+    {
+        var repositoryRoot = await ResolveRepositoryRootAsync();
+        if (repositoryRoot is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SelectedPath))
+        {
+            AppendOutput("No path selected.");
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(SelectedPath);
+        if (PathEquals(fullPath, repositoryRoot))
+        {
+            AppendOutput("Cannot delete the repository root.");
+            return;
+        }
+
+        var args = keepLocal
+            ? new List<string> { "rm", "-r", "--cached" }
+            : new List<string> { "rm", "-r" };
+        GitService.AddPathspec(args, repositoryRoot, SelectedPath);
+
+        var title = keepLocal ? "Delete selected path, keep local" : "Delete selected path and local files";
+        StatusText = title;
+        var result = await _git.RunAsync(repositoryRoot, args);
+        AppendCommand(title, repositoryRoot, args, result.StandardOutput, result.StandardError);
+
+        if (!keepLocal && result.IsSuccess)
+        {
+            RefreshWorkspaceTree();
+        }
+
+        await RefreshAsync();
+        StatusText = result.IsSuccess ? "Ready" : $"{title} failed";
+    }
+
+    private void RefreshWorkspaceTree()
+    {
+        foreach (var root in Roots)
+        {
+            root.Refresh();
+        }
     }
 
     private async Task ShowDiffAsync()
@@ -1330,6 +1460,20 @@ public sealed class MainWindowViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(PendingCountText));
+    }
+
+    private void NotifySelectedPendingCommitActionStateChanged()
+    {
+        OnPropertyChanged(nameof(CanOperateSelectedPendingCommit));
+        OnPropertyChanged(nameof(CanCancelSelectedStagedAdd));
+        OnPropertyChanged(nameof(CanCancelSelectedStagedDelete));
+        OnPropertyChanged(nameof(CanRevertSelectedStagedModified));
+    }
+
+    private bool IsSelectedChangeListState(string state)
+    {
+        return SelectedPendingCommit is { IsChangeEntry: true } changeList &&
+               string.Equals(changeList.ChangeListState, state, StringComparison.Ordinal);
     }
 
     private static string? GetStagedChangeListState(GitChange change)

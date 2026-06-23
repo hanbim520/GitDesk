@@ -128,6 +128,8 @@
                                     <MenuItem Header="Git Add" Command="{Binding AddSelectedCommand}" />
                                     <MenuItem Header="Git Commit" Click="OnCommitClicked" />
                                     <MenuItem Header="Git Revert" Command="{Binding RevertSelectedCommand}" />
+                                    <MenuItem Header="Git Delete, Keep Local" Command="{Binding DeleteSelectedKeepLocalCommand}" />
+                                    <MenuItem Header="Git Delete, Delete Local" Command="{Binding DeleteSelectedDeleteLocalCommand}" />
                                     <MenuItem Header="Git Diff" Command="{Binding DiffSelectedCommand}" />
                                     <MenuItem Header="Git Log" Command="{Binding LogSelectedCommand}" />
                                 </ContextMenu>
@@ -186,15 +188,18 @@
                                               RowHeight="28">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy Content" Click="OnCopyPendingContent" />
-                                                <Separator />
-                                                <MenuItem Header="Push" Click="OnPushClicked" />
-                                                <Separator />
-                                                <MenuItem Header="Revert Commit" Click="OnRevertPendingCommit" />
-                                                <MenuItem Header="Restore Changes To Worktree" Click="OnRestorePendingCommit" />
-                                                <Separator />
-                                                <MenuItem Header="Delete HEAD Commit, Keep Changes" Click="OnDeletePendingCommitKeepChanges" />
-                                                <MenuItem Header="Delete HEAD Commit, Discard Changes" Click="OnDeletePendingCommitDiscardChanges" />
+                                                <MenuItem x:Name="PendingCopyMenuItem" Header="Copy Content" Click="OnCopyPendingContent" />
+                                                <Separator x:Name="PendingPrimarySeparator" />
+                                                <MenuItem x:Name="PendingPushMenuItem" Header="Push" Click="OnPushClicked" />
+                                                <MenuItem x:Name="CancelStagedAddMenuItem" Header="Cancel Add" Click="OnCancelStagedAdd" />
+                                                <MenuItem x:Name="CancelStagedDeleteMenuItem" Header="Cancel Delete" Click="OnCancelStagedDelete" />
+                                                <MenuItem x:Name="RevertStagedModifiedMenuItem" Header="Revert Modified" Click="OnRevertStagedModified" />
+                                                <Separator x:Name="PendingCommitSeparator" />
+                                                <MenuItem x:Name="RevertCommitMenuItem" Header="Revert Commit" Click="OnRevertPendingCommit" />
+                                                <MenuItem x:Name="RestoreCommitMenuItem" Header="Restore Changes To Worktree" Click="OnRestorePendingCommit" />
+                                                <Separator x:Name="PendingDeleteSeparator" />
+                                                <MenuItem x:Name="DeleteHeadKeepMenuItem" Header="Delete HEAD Commit, Keep Changes" Click="OnDeletePendingCommitKeepChanges" />
+                                                <MenuItem x:Name="DeleteHeadDiscardMenuItem" Header="Delete HEAD Commit, Discard Changes" Click="OnDeletePendingCommitDiscardChanges" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>

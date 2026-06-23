@@ -6,6 +6,7 @@ GitDesk is a cross-platform desktop Git UI built with C# and Avalonia. It focuse
 
 - Browse and remember multiple workspaces with LevelDB-backed workspace history.
 - Display a project directory tree with right-click Git operations.
+- Delete files or folders from the project tree while either keeping or deleting local files.
 - Show local unpushed commits in `ChangeLists`.
 - Show repository commit history with `Local` and `Remote` state markers.
 - Inspect commit file changes in a docked `CL Changes` panel.

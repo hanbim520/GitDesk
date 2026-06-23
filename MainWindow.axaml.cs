@@ -102,6 +102,7 @@ public partial class MainWindow : Window
 
         PendingGrid.SelectedItem = entry;
         ViewModel.SelectedPendingCommit = entry;
+        UpdatePendingContextMenu();
     }
 
     private void OnCLChangesGridPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -139,6 +140,21 @@ public partial class MainWindow : Window
     private async void OnRevertPendingCommit(object? sender, RoutedEventArgs e)
     {
         await ViewModel.RevertSelectedPendingCommitAsync();
+    }
+
+    private async void OnCancelStagedAdd(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.CancelSelectedStagedAddAsync();
+    }
+
+    private async void OnCancelStagedDelete(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.CancelSelectedStagedDeleteAsync();
+    }
+
+    private async void OnRevertStagedModified(object? sender, RoutedEventArgs e)
+    {
+        await ViewModel.RevertSelectedStagedModifiedAsync();
     }
 
     private async void OnRestorePendingCommit(object? sender, RoutedEventArgs e)
@@ -325,6 +341,22 @@ public partial class MainWindow : Window
     private void OnExit(object? sender, RoutedEventArgs e)
     {
         Close();
+    }
+
+    private void UpdatePendingContextMenu()
+    {
+        var isCommit = ViewModel.CanOperateSelectedPendingCommit;
+        PendingPushMenuItem.IsVisible = isCommit;
+        RevertCommitMenuItem.IsVisible = isCommit;
+        RestoreCommitMenuItem.IsVisible = isCommit;
+        DeleteHeadKeepMenuItem.IsVisible = isCommit;
+        DeleteHeadDiscardMenuItem.IsVisible = isCommit;
+        PendingCommitSeparator.IsVisible = isCommit;
+        PendingDeleteSeparator.IsVisible = isCommit;
+
+        CancelStagedAddMenuItem.IsVisible = ViewModel.CanCancelSelectedStagedAdd;
+        CancelStagedDeleteMenuItem.IsVisible = ViewModel.CanCancelSelectedStagedDelete;
+        RevertStagedModifiedMenuItem.IsVisible = ViewModel.CanRevertSelectedStagedModified;
     }
 
     private async Task<string?> PickFolderAsync()
