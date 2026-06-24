@@ -320,13 +320,37 @@ public sealed class MainWindowViewModel : ObservableObject
     public async Task RunBusyAsync(string text, Func<Task> action)
     {
         using var scope = BeginBusy(text);
-        await action();
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            ReportUnexpectedError(text, ex);
+        }
     }
 
     public async Task<T> RunBusyAsync<T>(string text, Func<Task<T>> action)
     {
         using var scope = BeginBusy(text);
-        return await action();
+        try
+        {
+            return await action();
+        }
+        catch (Exception ex)
+        {
+            ReportUnexpectedError(text, ex);
+            return default!;
+        }
+    }
+
+    // Last-resort guard for the async void UI event handlers that funnel through
+    // RunBusyAsync: turn an unexpected exception into a visible message instead of
+    // letting it escape to the dispatcher and terminate the process.
+    private void ReportUnexpectedError(string text, Exception ex)
+    {
+        AppendOutput($"{text} failed: {ex.Message}");
+        StatusText = $"{text} failed";
     }
 
     private IDisposable BeginBusy(string text)
@@ -1304,7 +1328,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var cleanArgs = new List<string> { "clean", "-ffdx", "--" };
             cleanArgs.AddRange(blockingPaths);
-            var cleanResult = await _git.RunAsync(repositoryRoot, cleanArgs);
+            var cleanResult = await _git.RunBatchedPathspecsAsync(repositoryRoot, new[] { "clean", "-ffdx" }, blockingPaths);
             AppendCommand("Delete untracked files blocking pull", repositoryRoot, cleanArgs, cleanResult.StandardOutput, cleanResult.StandardError);
 
             if (cleanResult.IsSuccess)
@@ -1523,7 +1547,7 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             var addArgs = new List<string> { "add", "--" };
             addArgs.AddRange(untrackedPathspecs);
-            var addResult = await _git.RunAsync(repositoryRoot, addArgs);
+            var addResult = await _git.RunBatchedPathspecsAsync(repositoryRoot, new[] { "add" }, untrackedPathspecs);
             AppendCommand("Stage untracked files", repositoryRoot, addArgs, addResult.StandardOutput, addResult.StandardError);
 
             if (!addResult.IsSuccess)
@@ -1676,7 +1700,9 @@ public sealed class MainWindowViewModel : ObservableObject
         args.AddRange(pathspecs);
 
         StatusText = title;
-        var result = await _git.RunAsync(repositoryRoot, args);
+        // Split across multiple git invocations so a large ChangeList never blows past
+        // the OS command-line limit (the cause of the Win32 error 206 crash).
+        var result = await _git.RunBatchedPathspecsAsync(repositoryRoot, baseArguments, pathspecs);
         AppendCommand(title, repositoryRoot, args, result.StandardOutput, result.StandardError);
 
         await RefreshAsync();
@@ -1723,7 +1749,9 @@ public sealed class MainWindowViewModel : ObservableObject
         args.AddRange(pathspecs);
 
         StatusText = title;
-        var result = await _git.RunAsync(repositoryRoot, args);
+        // Split across multiple git invocations so a large ChangeList never blows past
+        // the OS command-line limit (the cause of the Win32 error 206 crash).
+        var result = await _git.RunBatchedPathspecsAsync(repositoryRoot, baseArguments, pathspecs);
         AppendCommand(title, repositoryRoot, args, result.StandardOutput, result.StandardError);
 
         await RefreshAsync();

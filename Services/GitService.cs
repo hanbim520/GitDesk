@@ -37,6 +37,100 @@ public sealed class GitService
             cancellationToken);
     }
 
+    // Windows caps a process command line at ~32767 chars. Stay well under it to
+    // leave room for the "git" path, the UTF-8 -c config flags and per-arg quoting.
+    private const int CommandLineBudget = 28000;
+
+    /// <summary>
+    /// Runs <paramref name="baseArguments"/> followed by "--" and a list of pathspecs,
+    /// automatically splitting the pathspecs across multiple git invocations so the
+    /// command line never exceeds the OS limit. Only safe for commands that are
+    /// additive/idempotent over their pathspecs (add, reset, restore, checkout, clean,
+    /// rm) — NOT for commit, which would produce multiple commits.
+    /// </summary>
+    public async Task<GitCommandResult> RunBatchedPathspecsAsync(
+        string workingDirectory,
+        IReadOnlyList<string> baseArguments,
+        IReadOnlyList<string> pathspecs,
+        CancellationToken cancellationToken = default)
+    {
+        // Cost of the fixed prefix (base args + the "--" separator). Each arg pays for
+        // its characters plus surrounding quotes and a separating space.
+        var baseCost = "--".Length + 3;
+        foreach (var argument in baseArguments)
+        {
+            baseCost += argument.Length + 3;
+        }
+
+        var combinedOutput = new StringBuilder();
+        var combinedError = new StringBuilder();
+        var firstFailureExitCode = 0;
+        var ranAnyBatch = false;
+
+        var batch = new List<string>();
+        var batchCost = baseCost;
+
+        async Task FlushBatchAsync()
+        {
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            var args = new List<string>(baseArguments) { "--" };
+            args.AddRange(batch);
+
+            var result = await RunAsync(workingDirectory, args, cancellationToken);
+            ranAnyBatch = true;
+
+            if (result.StandardOutput.Length > 0)
+            {
+                combinedOutput.Append(result.StandardOutput);
+            }
+
+            if (result.StandardError.Length > 0)
+            {
+                combinedError.Append(result.StandardError);
+            }
+
+            if (!result.IsSuccess && firstFailureExitCode == 0)
+            {
+                firstFailureExitCode = result.ExitCode;
+            }
+
+            batch.Clear();
+            batchCost = baseCost;
+        }
+
+        foreach (var pathspec in pathspecs)
+        {
+            var cost = pathspec.Length + 3;
+
+            // Flush before adding when this path would overflow the budget, but always
+            // keep at least one path per batch so a single very long path still runs
+            // (and fails cleanly via the start-up guard rather than crashing).
+            if (batch.Count > 0 && batchCost + cost > CommandLineBudget)
+            {
+                await FlushBatchAsync();
+            }
+
+            batch.Add(pathspec);
+            batchCost += cost;
+        }
+
+        await FlushBatchAsync();
+
+        if (!ranAnyBatch)
+        {
+            return new GitCommandResult(0, string.Empty, string.Empty);
+        }
+
+        return new GitCommandResult(
+            firstFailureExitCode,
+            combinedOutput.ToString(),
+            combinedError.ToString());
+    }
+
     public async Task<GitCommandResult> RunAuthenticatedAsync(
         string workingDirectory,
         IReadOnlyList<string> arguments,
@@ -131,7 +225,17 @@ public sealed class GitService
         }
 
         using var process = new Process { StartInfo = startInfo };
-        process.Start();
+        try
+        {
+            process.Start();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A failure to even launch git (e.g. Win32 error 206 when the command
+            // line exceeds the OS limit, or git missing from PATH) must never crash
+            // the app. Surface it as a normal failed result so callers can report it.
+            return new GitCommandResult(-1, string.Empty, $"Failed to start git: {ex.Message}");
+        }
 
         if (standardInput is not null)
         {
