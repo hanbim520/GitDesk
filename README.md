@@ -32,27 +32,53 @@ GitDesk is a cross-platform desktop Git UI built with C# and Avalonia. It focuse
 
 ## Requirements
 
-- .NET SDK 9.0 or newer
+- .NET SDK 10.0 (the project multi-targets `net9.0;net10.0`, so the .NET 10 SDK is
+  required to build — it can build the `net9.0` target too). Install it via
+  `winget install --id Microsoft.DotNet.SDK.10 -e`.
 - Git available on `PATH`
+
+## Target Frameworks
+
+The project multi-targets both `net9.0` and `net10.0`:
+
+```xml
+<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+```
+
+A plain `dotnet build` / `dotnet run` builds both. Pass `-f <tfm>` to pick one.
+Because `net10.0` is listed, the **.NET 10 SDK must be installed** or the build
+fails with `NETSDK1045` (this also blocks the `net9.0` target). Running the
+`net10.0` output requires the **.NET 10 Desktop Runtime** on the target machine.
 
 ## Run
 
 ```powershell
-dotnet run
+dotnet run                 # default TFM
+dotnet run -f net10.0      # .NET 10
+dotnet run -f net9.0       # .NET 9
 ```
 
 ## Build
 
 ```powershell
-dotnet build
+dotnet build               # both target frameworks
+dotnet build -c Release -f net10.0   # Release, .NET 10 only
+dotnet build -c Release -f net9.0    # Release, .NET 9 only
 ```
+
+> Close any running `GitDesk.exe` before rebuilding, otherwise the build fails to
+> overwrite the locked executable.
 
 ## Publish Examples
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained true
-dotnet publish -c Release -r linux-x64 --self-contained true
-dotnet publish -c Release -r osx-arm64 --self-contained true
+# Framework-dependent (target machine needs the .NET 10 Desktop Runtime)
+dotnet publish -c Release -f net10.0 -r win-x64
+
+# Self-contained single file (no runtime needed on the target machine)
+dotnet publish -c Release -f net10.0 -r win-x64 --self-contained true -p:PublishSingleFile=true
+dotnet publish -c Release -f net9.0  -r linux-x64 --self-contained true
+dotnet publish -c Release -f net10.0 -r osx-arm64 --self-contained true
 ```
 
 ## Notes
@@ -62,6 +88,7 @@ dotnet publish -c Release -r osx-arm64 --self-contained true
 - GitHub tokens are handed to Git Credential Manager through `git credential approve`; GitDesk only stores non-secret settings such as host, username, and Git author identity.
 - Fetch, pull, and push run through Git Credential Manager and open Settings when authentication fails.
 - GitHub tokens only apply to HTTPS remotes. SSH remotes such as `git@github.com:owner/repo.git` should be converted to HTTPS before using token authentication.
+- On an unhandled crash the app writes a full minidump to `dumps/*.dmp` next to the executable and appends details to `crash.log`, for analysis in WinDbg/cdb. Both paths are git-ignored.
 - The vendored LevelDB.NET source is kept under `third_party/leveldb.net` for source visibility.
 - Repository text files are expected to be UTF-8 without BOM. Run `tools/verify-utf8-nobom.ps1` to check this locally; the included Git hook uses the same check.
 
