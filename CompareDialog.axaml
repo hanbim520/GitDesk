@@ -7,6 +7,25 @@
         MinWidth="900"
         MinHeight="560"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <SolidColorBrush x:Key="TransparentBrush" Color="Transparent" />
+
+        <SolidColorBrush x:Key="CompareContentBackgroundBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="CompareLineNumberBackgroundBrush" Color="#FAFAFA" />
+        <SolidColorBrush x:Key="CompareAddedBackgroundBrush" Color="#DDF4DD" />
+        <SolidColorBrush x:Key="CompareDeletedBackgroundBrush" Color="#FFE1E1" />
+        <SolidColorBrush x:Key="CompareModifiedLeftBackgroundBrush" Color="#FFF4C2" />
+        <SolidColorBrush x:Key="CompareModifiedRightBackgroundBrush" Color="#E0F5D7" />
+        <SolidColorBrush x:Key="CompareAddedLineNumberBackgroundBrush" Color="#D3ECD3" />
+        <SolidColorBrush x:Key="CompareDeletedLineNumberBackgroundBrush" Color="#F4D4D4" />
+        <SolidColorBrush x:Key="CompareModifiedLeftLineNumberBackgroundBrush" Color="#F0E6AF" />
+        <SolidColorBrush x:Key="CompareModifiedRightLineNumberBackgroundBrush" Color="#D3EACB" />
+        <SolidColorBrush x:Key="CompareAddedMarkerBrush" Color="#83C783" />
+        <SolidColorBrush x:Key="CompareDeletedMarkerBrush" Color="#D99595" />
+        <SolidColorBrush x:Key="CompareModifiedMarkerBrush" Color="#C8BE65" />
+
+    </Window.Resources>
+
     <Window.Styles>
         <Style Selector="Button.toolbar">
             <Setter Property="MinWidth" Value="28" />
@@ -24,12 +43,54 @@
             <Setter Property="TextWrapping" Value="NoWrap" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-marker">
+            <Setter Property="Background" Value="{DynamicResource TransparentBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-marker.added">
+            <Setter Property="Background" Value="{DynamicResource CompareAddedMarkerBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-marker.deleted">
+            <Setter Property="Background" Value="{DynamicResource CompareDeletedMarkerBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-marker.modified">
+            <Setter Property="Background" Value="{DynamicResource CompareModifiedMarkerBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-number">
+            <Setter Property="Background" Value="{DynamicResource CompareLineNumberBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-number.added">
+            <Setter Property="Background" Value="{DynamicResource CompareAddedLineNumberBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-number.deleted">
+            <Setter Property="Background" Value="{DynamicResource CompareDeletedLineNumberBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-number.modified-left">
+            <Setter Property="Background" Value="{DynamicResource CompareModifiedLeftLineNumberBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-number.modified-right">
+            <Setter Property="Background" Value="{DynamicResource CompareModifiedRightLineNumberBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-content">
+            <Setter Property="Background" Value="{DynamicResource CompareContentBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-content.added">
+            <Setter Property="Background" Value="{DynamicResource CompareAddedBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-content.deleted">
+            <Setter Property="Background" Value="{DynamicResource CompareDeletedBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-content.modified-left">
+            <Setter Property="Background" Value="{DynamicResource CompareModifiedLeftBackgroundBrush}" />
+        </Style>
+        <Style Selector="ItemsControl.compare-lines Border.line-content.modified-right">
+            <Setter Property="Background" Value="{DynamicResource CompareModifiedRightBackgroundBrush}" />
+        </Style>
         <Style Selector="DataGrid.compare-grid">
-            <Setter Property="Background" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#CFCFCF" />
+            <Setter Property="Background" Value="{DynamicResource CompareContentBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="GridLinesVisibility" Value="Horizontal" />
-            <Setter Property="HorizontalGridLinesBrush" Value="#D8D8D8" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
             <Setter Property="RowHeight" Value="22" />
             <Setter Property="HeadersVisibility" Value="None" />
             <Setter Property="CanUserResizeColumns" Value="False" />
@@ -100,15 +161,15 @@
         <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,5,*">
             <Border Grid.Row="0"
                     Grid.Column="0"
-                    BorderBrush="#CFCFCF"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,0,1,1"
-                    Background="#FFFFFF"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                     Padding="7,3">
                 <Grid ColumnDefinitions="14,*">
                     <Ellipse Grid.Column="0"
                              Width="12"
                              Height="12"
-                             Fill="#4D5BD1"
+                             Fill="{DynamicResource AccentFillColorDefaultBrush}"
                              VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding LeftHeaderText}"
@@ -122,21 +183,21 @@
 
             <Border Grid.Row="0"
                     Grid.Column="1"
-                    BorderBrush="#CFCFCF"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,0,0,1"
-                    Background="#D8D8D8" />
+                    Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
 
             <Border Grid.Row="0"
                     Grid.Column="2"
-                    BorderBrush="#CFCFCF"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="1,0,0,1"
-                    Background="#FFFFFF"
+                    Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
                     Padding="7,3">
                 <Grid ColumnDefinitions="14,*">
                     <Ellipse Grid.Column="0"
                              Width="12"
                              Height="12"
-                             Fill="#35B050"
+                             Fill="{DynamicResource SystemFillColorSuccessBrush}"
                              VerticalAlignment="Center" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding RightHeaderText}"
@@ -151,34 +212,38 @@
             <ScrollViewer x:Name="LeftCompareScrollViewer"
                           Grid.Row="1"
                           Grid.Column="0"
-                          Background="#FFFFFF"
+                          Background="{DynamicResource CompareContentBackgroundBrush}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl Classes="compare-lines" ItemsSource="{Binding Lines}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Height="22"
-                                    BorderBrush="#D8D8D8"
+                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                     BorderThickness="0,0,0,1">
                                 <Grid ColumnDefinitions="8,50,Auto">
-                                    <Border Grid.Column="0" Background="{Binding LeftMarkerBackground}" />
+                                    <Border Grid.Column="0" Classes.line-marker="True" Classes.deleted="{Binding IsDeleted}" Classes.modified="{Binding IsModified}" />
                                     <Border Grid.Column="1"
-                                            Background="{Binding LeftLineNumberBackground}"
-                                            BorderBrush="#D0D0D0"
+                                            Classes.line-number="True"
+                                            Classes.deleted="{Binding IsDeleted}"
+                                            Classes.modified-left="{Binding IsModified}"
+                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                             BorderThickness="0,0,1,0"
                                             Padding="2,0">
                                         <TextBlock Classes="code"
                                                    Text="{Binding LeftLineNumber}"
-                                                   Foreground="#555555"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                    TextAlignment="Right" />
                                     </Border>
                                     <Border Grid.Column="2"
                                             MinWidth="720"
-                                            Background="{Binding LeftBackground}"
+                                            Classes.line-content="True"
+                                            Classes.deleted="{Binding IsDeleted}"
+                                            Classes.modified-left="{Binding IsModified}"
                                             Padding="6,0">
                                         <TextBlock Classes="code"
                                                    Text="{Binding LeftText}"
-                                                   Foreground="#000000" />
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                     </Border>
                                 </Grid>
                             </Border>
@@ -190,40 +255,44 @@
             <GridSplitter Grid.Row="1"
                           Grid.Column="1"
                           Width="5"
-                          Background="#D0D0D0"
+                          Background="{DynamicResource DividerStrokeColorDefaultBrush}"
                           ResizeDirection="Columns" />
 
             <ScrollViewer x:Name="RightCompareScrollViewer"
                           Grid.Row="1"
                           Grid.Column="2"
-                          Background="#FFFFFF"
+                          Background="{DynamicResource CompareContentBackgroundBrush}"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl Classes="compare-lines" ItemsSource="{Binding Lines}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Height="22"
-                                    BorderBrush="#D8D8D8"
+                                    BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                     BorderThickness="0,0,0,1">
                                 <Grid ColumnDefinitions="8,50,Auto">
-                                    <Border Grid.Column="0" Background="{Binding RightMarkerBackground}" />
+                                    <Border Grid.Column="0" Classes.line-marker="True" Classes.added="{Binding IsAdded}" Classes.modified="{Binding IsModified}" />
                                     <Border Grid.Column="1"
-                                            Background="{Binding RightLineNumberBackground}"
-                                            BorderBrush="#D0D0D0"
+                                            Classes.line-number="True"
+                                            Classes.added="{Binding IsAdded}"
+                                            Classes.modified-right="{Binding IsModified}"
+                                            BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                                             BorderThickness="0,0,1,0"
                                             Padding="2,0">
                                         <TextBlock Classes="code"
                                                    Text="{Binding RightLineNumber}"
-                                                   Foreground="#555555"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                    TextAlignment="Right" />
                                     </Border>
                                     <Border Grid.Column="2"
                                             MinWidth="720"
-                                            Background="{Binding RightBackground}"
+                                            Classes.line-content="True"
+                                            Classes.added="{Binding IsAdded}"
+                                            Classes.modified-right="{Binding IsModified}"
                                             Padding="6,0">
                                         <TextBlock Classes="code"
                                                    Text="{Binding RightText}"
-                                                   Foreground="#000000" />
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                     </Border>
                                 </Grid>
                             </Border>

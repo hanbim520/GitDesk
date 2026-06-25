@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Media;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -27,6 +28,34 @@ public partial class CompareDialog : Window
     public CompareDialog()
     {
         InitializeComponent();
+        UpdateCompareThemeResources();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ActualThemeVariantProperty)
+        {
+            UpdateCompareThemeResources();
+        }
+    }
+
+    private void UpdateCompareThemeResources()
+    {
+        var isDark = ActualThemeVariant.Key == "Dark";
+        Resources["CompareContentBackgroundBrush"] = Brush.Parse(isDark ? "#1E1E1E" : "#FFFFFF");
+        Resources["CompareLineNumberBackgroundBrush"] = Brush.Parse(isDark ? "#252525" : "#FAFAFA");
+        Resources["CompareAddedBackgroundBrush"] = Brush.Parse(isDark ? "#183A24" : "#DDF4DD");
+        Resources["CompareDeletedBackgroundBrush"] = Brush.Parse(isDark ? "#4A2020" : "#FFE1E1");
+        Resources["CompareModifiedLeftBackgroundBrush"] = Brush.Parse(isDark ? "#463D1D" : "#FFF4C2");
+        Resources["CompareModifiedRightBackgroundBrush"] = Brush.Parse(isDark ? "#243A1F" : "#E0F5D7");
+        Resources["CompareAddedLineNumberBackgroundBrush"] = Brush.Parse(isDark ? "#14321F" : "#D3ECD3");
+        Resources["CompareDeletedLineNumberBackgroundBrush"] = Brush.Parse(isDark ? "#3E1B1B" : "#F4D4D4");
+        Resources["CompareModifiedLeftLineNumberBackgroundBrush"] = Brush.Parse(isDark ? "#3A3218" : "#F0E6AF");
+        Resources["CompareModifiedRightLineNumberBackgroundBrush"] = Brush.Parse(isDark ? "#1F321B" : "#D3EACB");
+        Resources["CompareAddedMarkerBrush"] = Brush.Parse(isDark ? "#4A9B5D" : "#83C783");
+        Resources["CompareDeletedMarkerBrush"] = Brush.Parse(isDark ? "#B45C5C" : "#D99595");
+        Resources["CompareModifiedMarkerBrush"] = Brush.Parse(isDark ? "#9C8F3F" : "#C8BE65");
     }
 
     protected override async void OnOpened(EventArgs e)
